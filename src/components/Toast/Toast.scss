@@ -1,5 +1,4 @@
-@import '../../styles/variables';
-@import '../../styles/mixins';
+@use '../../styles/mixins' as *;
 
 .toast {
   display: flex;
@@ -10,8 +9,8 @@
   padding: 14px 18px;
   border-radius: $radius-md;
   background: var(--bg-secondary);
-  backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04);
   border: 1px solid var(--border-color);
   animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1);

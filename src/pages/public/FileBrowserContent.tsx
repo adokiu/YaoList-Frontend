@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef, useContext, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useContext, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import Vara from 'vara'
 import JSZip from 'jszip'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -15,11 +14,13 @@ import {
   LayoutGrid, List
 } from 'lucide-react'
 import { api } from '../../utils/api'
+import { joinFsPath, uploadFileOpenList } from '../../utils/openlistUpload'
 import { useToast } from '../../components/Toast'
 import { Tooltip } from '../../components/Tooltip/Tooltip'
 import TaskSidebar from '../../components/TaskSidebar'
 import UserSettingsSidebar from '../../components/UserSettingsSidebar'
 import { ExtractDialog } from '../../components/ExtractDialog'
+import { anchorMenuPosition, pointerMenuPosition } from '../../utils/viewportPlacement'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -677,6 +678,7 @@ export default function FileBrowserContent() {
     return { key: 'name', direction: 'asc' }
   })
   const [permissions, setPermissions] = useState<UserPermissions | null>(null)
+  const [directUploadTools, setDirectUploadTools] = useState<string[]>([])
   const [pagination, setPagination] = useState(() => {
     const savedPerPage = localStorage.getItem('perPage')
     return {
@@ -690,6 +692,8 @@ export default function FileBrowserContent() {
   const [showPerPageDropdown, setShowPerPageDropdown] = useState(false)
   const perPageRef = useRef<HTMLDivElement>(null)
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
+  const perPageMenuRef = useRef<HTMLDivElement>(null)
+  const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 })
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
     x: 0,
@@ -928,46 +932,6 @@ export default function FileBrowserContent() {
     )
   }
 
-  // Vara.js 手写动画 - Satisfy 字体（循环播放）
-  const varaInitialized = useRef(false)
-  useEffect(() => {
-    if (varaInitialized.current) return
-    const container = document.getElementById('vara-container')
-    
-    if (container && container.children.length === 0) {
-      varaInitialized.current = true
-      let isMounted = true
-      
-      const playAnimation = () => {
-        // 检查组件是否仍然挂载且容器存在
-        const currentContainer = document.getElementById('vara-container')
-        if (!isMounted || !currentContainer) return
-        
-        currentContainer.innerHTML = ''
-        try {
-          const vara = new Vara(
-            '#vara-container',
-            'https://cdn.jsdelivr.net/npm/vara@1.4.0/fonts/Satisfy/SatisfySL.json',
-            [{ text: 'YaoList', fontSize: 20, strokeWidth: 1.5, duration: 2000 }],
-            { strokeWidth: 1.5, color: '#667eea' }
-          )
-          vara.animationEnd(() => {
-            if (isMounted) {
-              setTimeout(playAnimation, 1500)
-            }
-          })
-        } catch (e) {
-          // 忽略 Vara 初始化错误
-        }
-      }
-      playAnimation()
-      
-      return () => {
-        isMounted = false
-      }
-    }
-  }, [])
-
   // 暗色模式切换
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light')
@@ -1065,12 +1029,32 @@ export default function FileBrowserContent() {
     loadPermissions()
   }, [])
 
+  useLayoutEffect(() => {
+    if (!contextMenu.visible || !menuRef.current) return
+    const rect = menuRef.current.getBoundingClientRect()
+    const { x, y } = pointerMenuPosition(contextMenu.x, contextMenu.y, rect.width, rect.height)
+    setContextMenuPos({ x, y })
+  }, [contextMenu.visible, contextMenu.x, contextMenu.y, contextMenu.file])
+
+  useLayoutEffect(() => {
+    if (!showPerPageDropdown || !perPageRef.current || !perPageMenuRef.current) return
+    const anchor = perPageRef.current.getBoundingClientRect()
+    const menu = perPageMenuRef.current.getBoundingClientRect()
+    const { x, y } = anchorMenuPosition(anchor, menu.width, menu.height, { align: 'center', gap: 8 })
+    setDropdownPosition({ top: y, left: x })
+  }, [showPerPageDropdown])
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setContextMenu(prev => ({ ...prev, visible: false }))
       }
-      if (perPageRef.current && !perPageRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (
+        perPageRef.current &&
+        !perPageRef.current.contains(target) &&
+        !perPageMenuRef.current?.contains(target)
+      ) {
         setShowPerPageDropdown(false)
       }
     }
@@ -1200,6 +1184,7 @@ export default function FileBrowserContent() {
       setPasswordRequired(false)
       const data = response.data.data
       const fileList = data?.content || []
+      setDirectUploadTools(Array.isArray(data?.direct_upload_tools) ? data.direct_upload_tools : [])
       setFiles(fileList)
       setReadme(data?.readme || '')
       setHeader(data?.header || '')
@@ -1324,6 +1309,7 @@ export default function FileBrowserContent() {
 
   const handleContextMenu = (e: React.MouseEvent, file: FileItem) => {
     e.preventDefault()
+    setContextMenuPos({ x: e.clientX, y: e.clientY })
     setContextMenu({
       visible: true,
       x: e.clientX,
@@ -1626,9 +1612,6 @@ export default function FileBrowserContent() {
     }
   }
 
-  // 分片大小：128MB（大分片减少HTTP请求开销）
-  const CHUNK_SIZE = 32 * 1024 * 1024
-  
   // 上传任务取消状态（taskId -> cancelled）
   const uploadCancelledRef = useRef<Set<string>>(new Set())
   
@@ -1636,7 +1619,9 @@ export default function FileBrowserContent() {
   const cancelUploadTask = (taskId: string) => {
     uploadCancelledRef.current.add(taskId)
     // 调用后端取消API
-    api.post('/api/tasks/cancel', { task_id: taskId }).catch(console.error)
+    api
+      .post(`/api/task/upload/cancel?tid=${encodeURIComponent(taskId)}`)
+      .catch(console.error)
   }
   
   // 检查任务是否已取消
@@ -1644,121 +1629,36 @@ export default function FileBrowserContent() {
     return uploadCancelledRef.current.has(taskId)
   }
 
-  // 上传单个文件（支持分片和断点续传）
+  // OpenList 式上传：小文件 PUT /api/fs/put，大文件 multipart init/chunk/complete
   const uploadSingleFile = async (
-    file: File, 
-    _taskId: string, // 本地任务ID（已由后端管理）
+    file: File,
+    _taskId: string,
     relativePath?: string,
-    batchTaskId?: string // 后端批次任务ID
+    batchTaskId?: string,
+    batchOriginalPath?: string
   ) => {
     const targetPath = currentPath ? `/${currentPath}` : '/'
     const filename = relativePath || file.name
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
-    let uploadedSize = 0
-    
-    // 小文件直接上传
-    if (totalChunks <= 1) {
-      const formData = new FormData()
-      formData.append('path', targetPath)
-      formData.append('filename', filename)
-      formData.append('totalSize', String(file.size))
-      if (batchTaskId) {
-        formData.append('taskId', batchTaskId)
-      }
-      formData.append('file', file)
-      
-      const response = await api.post('/api/fs/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+    const fullPath = joinFsPath(targetPath, filename)
+    if (batchTaskId && isUploadCancelled(batchTaskId)) {
+      throw new Error('CANCELLED')
+    }
+
+    await uploadFileOpenList(file, fullPath, {
+      overwrite: true,
+      directUploadTools,
+      batch: batchTaskId && batchOriginalPath
+        ? { taskId: batchTaskId, filePath: batchOriginalPath }
+        : undefined,
+    })
+
+    if (batchTaskId && batchOriginalPath) {
+      await api.post('/api/fs/upload/complete_file', {
+        task_id: batchTaskId,
+        file_path: batchOriginalPath,
       })
-      
-      if (response.data.code === 200) {
-        return true
-      }
-      throw new Error(response.data.message || '上传失败')
     }
-    
-    // 大文件分片上传 - 查询已上传的分片
-    let uploadedChunks: number[] = []
-    try {
-      const statusRes = await api.post('/api/fs/upload/status', {
-        path: targetPath,
-        filename,
-        total_chunks: totalChunks
-      })
-      if (statusRes.data.code === 200) {
-        uploadedChunks = statusRes.data.data?.uploadedChunks || []
-        uploadedSize = uploadedChunks.length * CHUNK_SIZE
-      }
-    } catch {
-      // 忽略错误，从头开始上传
-    }
-    
-    // 上传缺失的分片（带重试逻辑）
-    const MAX_RETRIES = 3
-    
-    for (let i = 0; i < totalChunks; i++) {
-      if (uploadedChunks.includes(i)) continue
-      
-      const start = i * CHUNK_SIZE
-      const end = Math.min(start + CHUNK_SIZE, file.size)
-      const chunk = file.slice(start, end)
-      
-      let lastError: Error | null = null
-      
-      for (let retry = 0; retry < MAX_RETRIES; retry++) {
-        try {
-          const formData = new FormData()
-          formData.append('path', targetPath)
-          formData.append('filename', filename)
-          formData.append('chunkIndex', String(i))
-          formData.append('totalChunks', String(totalChunks))
-          formData.append('totalSize', String(file.size))
-          if (batchTaskId) {
-            formData.append('taskId', batchTaskId)
-          }
-          formData.append('file', chunk)
-          
-          const response = await api.post('/api/fs/upload', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-            timeout: 120000 // 2分钟超时
-          })
-          
-          if (response.data.code === 499) {
-            // 任务已取消
-            throw new Error('CANCELLED')
-          }
-          if (response.data.code === 498) {
-            // 任务已暂停，等待后重试（不计入重试次数）
-            console.log('任务已暂停，等待恢复...')
-            await new Promise(resolve => setTimeout(resolve, 1000))
-            retry-- // 不计入重试次数
-            continue
-          }
-          if (response.data.code !== 200) {
-            throw new Error(response.data.message || '分片上传失败')
-          }
-          
-          uploadedSize += chunk.size
-          lastError = null
-          break // 成功，跳出重试循环
-        } catch (err: any) {
-          // 取消错误不重试
-          if (err.message === 'CANCELLED') {
-            throw err
-          }
-          lastError = err
-          console.warn(`分片 ${i} 上传失败，重试 ${retry + 1}/${MAX_RETRIES}:`, err.message)
-          if (retry < MAX_RETRIES - 1) {
-            await new Promise(resolve => setTimeout(resolve, 1000 * (retry + 1))) // 递增延迟
-          }
-        }
-      }
-      
-      if (lastError) {
-        throw lastError // 重试用尽，抛出最后一个错误
-      }
-    }
-    
+
     return true
   }
 
@@ -1818,19 +1718,23 @@ export default function FileBrowserContent() {
         continue
       }
       
-      // 使用resolved路径的文件名（如果有重命名）
-      const uploadFilename = resolved?.resolved 
-        ? resolved.resolved.split('/').pop() || originalPath
-        : originalPath
-      
+      const uploadRelative = resolved?.resolved || originalPath
+
       try {
-        await uploadSingleFile(file, '', uploadFilename, backendTaskId || undefined)
+        await uploadSingleFile(
+          file,
+          '',
+          uploadRelative,
+          backendTaskId || undefined,
+          originalPath
+        )
       } catch (err: any) {
         // 如果是取消导致的错误，不记录
         if (backendTaskId && isUploadCancelled(backendTaskId)) {
           break
         }
-        console.error(`上传文件 ${uploadFilename} 失败:`, err)
+        console.error(`上传文件 ${uploadRelative} 失败:`, err)
+        toast.error(err?.message || t('fileBrowser.operationFailed'))
       }
     }
     
@@ -2152,11 +2056,6 @@ export default function FileBrowserContent() {
                   className="file-browser__per-page-trigger"
                   onClick={(e) => {
                     e.stopPropagation()
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    setDropdownPosition({
-                      top: rect.bottom + 8,
-                      left: rect.left + rect.width / 2
-                    })
                     setShowPerPageDropdown(!showPerPageDropdown)
                   }}
                 >
@@ -2168,7 +2067,8 @@ export default function FileBrowserContent() {
             {/* 每页数下拉菜单 - 使用 Portal 渲染到 body */}
             {showPerPageDropdown && createPortal(
               <div 
-                className="file-browser__per-page-dropdown"
+                ref={perPageMenuRef}
+                className="file-browser__per-page-dropdown file-browser__per-page-dropdown--placed"
                 style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -2194,7 +2094,7 @@ export default function FileBrowserContent() {
               <div 
                 ref={menuRef}
                 className="file-browser__context-menu"
-                style={{ left: contextMenu.x, top: contextMenu.y }}
+                style={{ left: contextMenuPos.x, top: contextMenuPos.y }}
               >
                 {permissions?.read_files && (
                   <button onClick={() => { handleDownload(contextMenu.file!); setContextMenu(prev => ({ ...prev, visible: false })) }}>

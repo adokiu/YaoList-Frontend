@@ -1,0 +1,61 @@
+:root {
+  --ambient-base: #eef1f4;
+  --ambient-mesh:
+    radial-gradient(ellipse 55% 45% at 18% 22%, rgba(31, 107, 90, 0.18), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 86% 78%, rgba(52, 78, 120, 0.14), transparent 68%),
+    linear-gradient(160deg, #f5f7f9 0%, #e9edf1 45%, #f4f1eb 100%);
+  --glass-panel: rgba(255, 255, 255, 0.78);
+  --glass-sidebar: rgba(255, 255, 255, 0.72);
+  --glass-header: rgba(255, 255, 255, 0.62);
+  --glass-border: rgba(20, 24, 32, 0.1);
+  --glass-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.45) inset,
+    0 12px 36px rgba(20, 24, 32, 0.08);
+}
+
+.dark,
+[data-theme='dark'] {
+  --ambient-base: #0b0d11;
+  --ambient-mesh:
+    radial-gradient(ellipse 55% 45% at 18% 22%, rgba(61, 155, 134, 0.18), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 86% 78%, rgba(70, 100, 160, 0.14), transparent 68%),
+    linear-gradient(160deg, #0c0e12 0%, #12151b 45%, #141210 100%);
+  --glass-panel: rgba(16, 18, 24, 0.72);
+  --glass-sidebar: rgba(16, 18, 24, 0.78);
+  --glass-header: rgba(16, 18, 24, 0.68);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 12px 36px rgba(0, 0, 0, 0.35);
+}
+
+.ambient-surface {
+  position: relative;
+  isolation: isolate;
+  background: var(--ambient-base);
+}
+
+.ambient-surface::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--ambient-mesh);
+  animation: ambient-drift 14s ease-in-out infinite alternate;
+}
+
+@keyframes ambient-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(-1.5%, 1.5%, 0) scale(1.03);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-surface::before {
+    animation: none;
+  }
+}

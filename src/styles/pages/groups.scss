@@ -1,5 +1,4 @@
-@import '../variables';
-@import '../mixins';
+@use '../mixins' as *;
 
 .groups {
   &__container {
@@ -535,8 +534,8 @@
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
     z-index: 1000;
     display: flex;
     justify-content: flex-end;
@@ -1010,8 +1009,8 @@
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;

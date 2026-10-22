@@ -1,0 +1,37 @@
+@font-face {
+  font-family: 'TCloud Number VF';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/TCloudNumberVF.ttf') format('truetype');
+}
+
+:root {
+  --font-family: 'MiSans VF', sans-serif;
+  --font-family-number: 'TCloud Number VF', 'MiSans VF', sans-serif;
+}
+
+html,
+html body,
+html button,
+html input,
+html select,
+html textarea {
+  font-family: var(--font-family);
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+html input[type='number'],
+html .font-number,
+html .exif-modal-apple__param-value,
+html .exif-modal-apple__item-value,
+html .exif-modal-apple__location-coords,
+html .user-settings-sidebar__stat-value {
+  font-family: var(--font-family-number);
+  font-variant-numeric: tabular-nums;
+}
+
+.font-number {
+  font-family: var(--font-family-number) !important;
+  font-variant-numeric: tabular-nums;
+}

@@ -1,17 +1,70 @@
-.user-settings-sidebar {
+// 与 scrollLock.ts 的 LOCK_CLASS 一致：全局列表页滚动在 html 上，须一并锁住
+html.yaolist-scroll-lock {
+  overflow: hidden !important;
+  overflow-x: clip !important;
+  scrollbar-gutter: stable;
+}
+
+.user-settings-sidebar-portal {
   position: fixed;
+  inset: 0;
+  z-index: 999;
+  overflow: clip;
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+.user-settings-sidebar__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  touch-action: none;
+  background: rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  animation: userSettingsBackdropIn 0.2s ease forwards;
+
+  &--closing {
+    animation: userSettingsBackdropOut 0.2s ease forwards;
+  }
+}
+
+@keyframes userSettingsBackdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes userSettingsBackdropOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.user-settings-sidebar {
+  position: absolute;
   top: 0;
   right: 0;
-  width: 380px;
-  height: 100vh;
+  bottom: 0;
+  width: min(380px, 100%);
+  max-width: 100%;
+  height: 100%;
+  max-height: 100dvh;
   background: rgba(var(--bg-secondary-rgb, 255, 255, 255), 0.75);
-  backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
   box-shadow: -4px 0 30px rgba(0, 0, 0, 0.1);
   border-left: 1px solid rgba(255, 255, 255, 0.2);
-  z-index: 1000;
+  z-index: 1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   animation: slideIn 0.2s ease forwards;
 
   [data-theme="dark"] & {
@@ -45,14 +98,19 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border-color);
+    gap: 12px;
+    padding: 16px 20px 12px;
+    min-width: 0;
 
     h3 {
       margin: 0;
       font-size: 16px;
       font-weight: 600;
       color: var(--text-primary);
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   }
 
@@ -75,8 +133,13 @@
 
   &__content {
     flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow-x: hidden;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 16px;
+    -webkit-overflow-scrolling: touch;
   }
 
   &__loading {
@@ -106,8 +169,8 @@
 
   &__card {
     background: rgba(var(--bg-tertiary-rgb, 245, 245, 245), 0.5);
-    backdrop-filter: blur(16px) saturate(180%);
     -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
     border-radius: 14px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
@@ -137,6 +200,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
     padding: 14px 16px;
     border-bottom: 1px solid rgba(var(--border-color-rgb, 200, 200, 200), 0.2);
     transition: all 0.2s ease;
@@ -180,9 +245,12 @@
     gap: 6px;
     font-size: 14px;
     color: var(--text-primary);
+    min-width: 0;
+    text-align: right;
 
     svg {
       opacity: 0.4;
+      flex-shrink: 0;
     }
   }
 
@@ -423,8 +491,8 @@
     gap: 8px;
     padding: 12px;
     background: rgba(var(--bg-tertiary-rgb, 245, 245, 245), 0.5);
-    backdrop-filter: blur(16px) saturate(180%);
     -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
     border-radius: 14px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
@@ -441,6 +509,7 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    max-width: 100%;
     padding: 6px 12px;
     background: rgba(var(--accent-color-rgb, 0, 122, 255), 0.1);
     color: var(--accent-color);
@@ -448,6 +517,7 @@
     font-size: 12px;
     font-weight: 500;
     border: 1px solid rgba(var(--accent-color-rgb, 0, 122, 255), 0.2);
+    overflow-wrap: anywhere;
     animation: tagPop 0.3s ease backwards;
     transition: transform 0.15s ease;
 
@@ -491,8 +561,8 @@
     gap: 10px;
     padding: 14px 16px;
     background: rgba(var(--bg-tertiary-rgb, 245, 245, 245), 0.5);
-    backdrop-filter: blur(16px) saturate(180%);
     -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
     color: var(--text-primary);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 14px;
@@ -618,7 +688,8 @@
     }
 
     code {
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+      font-family: var(--font-family-number);
+      font-variant-numeric: tabular-nums;
       font-size: 14px;
       font-weight: 500;
       color: var(--text-primary);

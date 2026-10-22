@@ -4,6 +4,7 @@ import { Plus, Edit, Trash2, X, Layers, ChevronDown } from 'lucide-react'
 import { api } from '../../utils/api'
 import { useToast } from '../../components/Toast'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { AdminPageHeader } from '../../components/manage/AdminPageHeader'
 import '../../styles/pages/load-balance.scss'
 
 interface DriverConfig {
@@ -246,22 +247,25 @@ export default function LoadBalance() {
   }
 
   if (loading) {
-    return <div className="load-balance"><div className="load-balance__loading">{t('loadBalance.loading')}</div></div>
+    return (
+      <div className="admin-page load-balance">
+        <div className="admin-page__loading">{t('loadBalance.loading')}</div>
+      </div>
+    )
   }
 
   return (
-    <div className="load-balance">
-      <div className="load-balance__header">
-        <h1>{t('loadBalance.title')}</h1>
-        <button className="load-balance__add-btn" onClick={() => handleOpenDrawer()}>
-          <Plus size={18} />
-          <span>{t('loadBalance.add')}</span>
-        </button>
-      </div>
-
-      <p className="load-balance__desc">
-        {t('loadBalance.description')}
-      </p>
+    <div className="admin-page load-balance">
+      <AdminPageHeader
+        title={t('loadBalance.title')}
+        description={t('loadBalance.description')}
+        actions={
+          <button className="load-balance__add-btn" type="button" onClick={() => handleOpenDrawer()}>
+            <Plus size={18} />
+            <span>{t('loadBalance.add')}</span>
+          </button>
+        }
+      />
 
       {groups.length === 0 ? (
         <div className="load-balance__empty">

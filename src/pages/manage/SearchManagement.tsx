@@ -7,6 +7,7 @@ import {
 import { api } from '../../utils/api'
 import { useToast } from '../../components/Toast'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { AdminPageHeader } from '../../components/manage/AdminPageHeader'
 import '../../styles/pages/search-management.scss'
 
 interface SearchSettings {
@@ -175,7 +176,8 @@ export default function SearchManagement() {
 
 
   return (
-    <div className="search-page">
+    <div className="admin-page search-page">
+      <AdminPageHeader title={t('menu.searchManagement', '搜索管理')} />
       {/* 索引设置卡片 */}
       <div className="search-page__card">
         <div className="search-page__card-header">

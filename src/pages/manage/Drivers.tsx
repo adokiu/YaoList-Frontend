@@ -5,6 +5,7 @@ import { api } from '../../utils/api'
 import { useToast } from '../../components/Toast'
 import { Select } from '../../components/Select'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { AdminPageHeader } from '../../components/manage/AdminPageHeader'
 import '../../styles/pages/drivers.scss'
 
 const formatBytes = (bytes: number): string => {
@@ -448,32 +449,34 @@ export default function Drivers() {
 
   if (loading) {
     return (
-      <div className="drivers__container">
-        <div className="drivers__loading">{t('common.loading')}</div>
+      <div className="admin-page drivers__container">
+        <div className="admin-page__loading">{t('common.loading')}</div>
       </div>
     )
   }
 
   return (
-    <div className="drivers__container">
-      <div className="drivers__header">
-        <h1>{t('drivers.title')}</h1>
-        <div className="drivers__actions">
-          <div className="drivers__search">
-          <Search size={18} />
-          <input
-            type="text"
-            placeholder={t('drivers.searchPlaceholder')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          </div>
-          <button className="drivers__add-btn" onClick={() => setShowAddDrawer(true)}>
-            <Plus size={18} />
-            {t('drivers.addDriver')}
-          </button>
-        </div>
-      </div>
+    <div className="admin-page drivers__container">
+      <AdminPageHeader
+        title={t('drivers.title')}
+        actions={
+          <>
+            <div className="drivers__search">
+              <Search size={18} />
+              <input
+                type="text"
+                placeholder={t('drivers.searchPlaceholder')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <button className="drivers__add-btn" type="button" onClick={() => setShowAddDrawer(true)}>
+              <Plus size={18} />
+              {t('drivers.addDriver')}
+            </button>
+          </>
+        }
+      />
 
       <div className="drivers__grid">
         {filteredDrivers.map((driver, index) => (

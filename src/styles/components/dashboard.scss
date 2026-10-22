@@ -1,5 +1,4 @@
-@import '../variables';
-@import '../mixins';
+@use '../mixins' as *;
 
 .dashboard {
   &__container {
@@ -318,13 +317,19 @@
 
   &__main-content {
     flex: 1;
-    padding: $spacing-xl;
-    padding-top: calc(60px + $spacing-xl);
-    overflow-y: auto;
-    @include custom-scrollbar;
+    padding: $spacing-md $spacing-lg;
+    padding-top: calc(60px + $spacing-md);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
   }
 
   &__page-wrapper {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
     animation: pageSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 

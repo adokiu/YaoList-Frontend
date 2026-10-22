@@ -1,6 +1,5 @@
-@import './variables';
-@import './mixins';
-@import './components/glass-effect';
+@use './mixins' as *;
+@use './components/glass-effect' as *;
 
 * {
   margin: 0;
@@ -12,6 +11,7 @@ html {
   scroll-behavior: smooth;
   // 防止滚动条出现/消失导致页面宽度变化抖动
   overflow-y: scroll;
+  overflow-x: clip;
   scrollbar-gutter: stable;
 }
 
@@ -25,6 +25,7 @@ html {
   --border-color: #{$border-color};
   --accent-color: #{$accent-color};
   --accent-hover: #{$accent-hover};
+  --error-color: #{$error-color};
   --shadow-sm: #{$shadow-sm};
   --shadow-md: #{$shadow-md};
   --shadow-lg: #{$shadow-lg};
@@ -45,13 +46,15 @@ html {
 }
 
 body {
-  font-family: $font-family;
+  max-width: 100%;
+  overflow-x: clip;
+  font-family: var(--font-family, #{$font-family});
   background-color: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: color 0.2s ease;
 }
 
 #root {

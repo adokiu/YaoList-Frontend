@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Send } from 'lucide-react'
 import { api } from '../../utils/api'
 import { useToast } from '../../components/Toast'
+import { AdminPageHeader } from '../../components/manage/AdminPageHeader'
 import '../../styles/pages/basic-settings.scss'
 
 interface NotificationSettings {
@@ -125,15 +126,15 @@ export default function Notifications() {
 
   if (loading) {
     return (
-      <div className="basic-settings">
-        <div className="basic-settings__loading">{t('common.loading')}</div>
+      <div className="admin-page basic-settings">
+        <div className="admin-page__loading">{t('common.loading')}</div>
       </div>
     )
   }
 
   return (
-    <div className="basic-settings">
-      <h1 style={{ fontSize: '28px', fontWeight: '600', marginBottom: '24px' }}>{t('notifications.title')}</h1>
+    <div className="admin-page basic-settings">
+      <AdminPageHeader title={t('notifications.title')} />
       
       <div className="basic-settings__section">
         <h2 className="basic-settings__section-title">{t('notifications.emailSection')}</h2>

@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Edit, Trash2, X, Check, Folder, FolderOpen, Lock, EyeOff, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { Plus, Edit, Trash2, X, Check, Folder, FolderOpen, Lock, EyeOff } from 'lucide-react'
 import { api } from '../../utils/api'
 import { useToast } from '../../components/Toast'
-import { Select } from '../../components/Select'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { PageLayout } from '../../components/PageLayout/PageLayout'
+import { DataTable, type Column } from '../../components/DataTable/DataTable'
+import { Button } from '../../components/Button/Button'
+import { TableActions, TableCell, TableLinkButton } from '../../components/manage/tableCells'
 import '../../styles/pages/metadata.scss'
 
 interface Meta {
@@ -67,7 +70,6 @@ export default function Metadata() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(10)
   const [total, setTotal] = useState(0)
-  const [totalPages, setTotalPages] = useState(0)
   const [deleteConfirm, setDeleteConfirm] = useState<{show: boolean, id: number | null}>({show: false, id: null})
 
   useEffect(() => {
@@ -81,7 +83,6 @@ export default function Metadata() {
       if (response.data.code === 200) {
         setMetas(response.data.data.content || [])
         setTotal(response.data.data.total || 0)
-        setTotalPages(response.data.data.total_pages || 0)
       }
     } catch (err) {
       toast.error(t('metas.loadFailed') || '加载元信息失败')
@@ -179,208 +180,146 @@ export default function Metadata() {
     setShowPathSelector(false)
   }
 
-  if (loading) {
-    return (
-      <div className="metadata">
-        <div className="metadata__loading">{t('common.loading')}</div>
-      </div>
-    )
-  }
+  const previewText = (text: string, max = 20) =>
+    text.length > max ? `${text.substring(0, max)}...` : text
+
+  const columns: Column<Meta>[] = useMemo(
+    () => [
+      {
+        key: 'path',
+        title: t('metas.path') || '路径',
+        render: (meta) => (
+          <TableCell large>
+            <div className="metadata__path-cell">
+              <FolderOpen size={16} />
+              <span>{meta.path}</span>
+            </div>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'password',
+        title: t('metas.password') || '密码',
+        render: (meta) =>
+          meta.password ? (
+            <span className="metadata__badge metadata__badge--warning data-table-tag">
+              <Lock size={12} />
+              {meta.p_sub && <span className="metadata__sub-tag">+子</span>}
+            </span>
+          ) : (
+            <span className="metadata__badge metadata__badge--muted">-</span>
+          ),
+      },
+      {
+        key: 'write',
+        title: t('metas.write') || '写入',
+        render: (meta) =>
+          meta.write ? (
+            <span className="metadata__badge metadata__badge--success data-table-tag">
+              <Check size={12} />
+              {meta.w_sub && <span className="metadata__sub-tag">+子</span>}
+            </span>
+          ) : (
+            <span className="metadata__badge metadata__badge--muted">-</span>
+          ),
+      },
+      {
+        key: 'hide',
+        title: t('metas.hide') || '隐藏',
+        render: (meta) =>
+          meta.hide ? (
+            <span className="metadata__badge metadata__badge--info data-table-tag">
+              <EyeOff size={12} />
+              {meta.h_sub && <span className="metadata__sub-tag">+子</span>}
+            </span>
+          ) : (
+            <span className="metadata__badge metadata__badge--muted">-</span>
+          ),
+      },
+      {
+        key: 'header',
+        title: t('metas.header') || '顶部说明',
+        render: (meta) =>
+          meta.header ? (
+            <TableCell>
+              <span className="metadata__text-preview" title={meta.header}>
+                {previewText(meta.header)}
+                {meta.header_sub && <span className="metadata__sub-tag">+子</span>}
+              </span>
+            </TableCell>
+          ) : (
+            <span className="metadata__badge metadata__badge--muted">-</span>
+          ),
+      },
+      {
+        key: 'readme',
+        title: t('metas.readme') || '说明',
+        render: (meta) =>
+          meta.readme ? (
+            <TableCell>
+              <span className="metadata__text-preview" title={meta.readme}>
+                {previewText(meta.readme)}
+                {meta.r_sub && <span className="metadata__sub-tag">+子</span>}
+              </span>
+            </TableCell>
+          ) : (
+            <span className="metadata__badge metadata__badge--muted">-</span>
+          ),
+      },
+      {
+        key: 'actions',
+        title: t('common.operations') || '操作',
+        render: (meta) => (
+          <TableActions>
+            <TableLinkButton onClick={() => handleOpenDrawer(meta)}>
+              <Edit size={14} />
+              {t('common.edit') || '编辑'}
+            </TableLinkButton>
+            <TableLinkButton danger onClick={() => handleDelete(meta.id)}>
+              <Trash2 size={14} />
+              {t('common.delete') || '删除'}
+            </TableLinkButton>
+          </TableActions>
+        ),
+      },
+    ],
+    [t],
+  )
 
   return (
-    <div className="metadata">
-      <div className="metadata__header">
-        <div className="metadata__header-left">
-          <h1>{t('metas.title') || '元信息'}</h1>
+    <div className="manage-page metadata">
+      <PageLayout
+        leftSlot={
           <p className="metadata__subtitle">
-            {t('metas.description') || '元信息内的配置对所有角色生效，如果想让用户有相应的权限请前往用户管理进行修改'}
+            {t('metas.description') ||
+              '元信息内的配置对所有角色生效，如果想让用户有相应的权限请前往用户管理进行修改'}
           </p>
+        }
+        rightSlot={
+          <Button size="sm" onClick={() => handleOpenDrawer()}>
+            <Plus size={16} />
+            {t('metas.add') || '添加'}
+          </Button>
+        }
+      >
+        <div className="manage-page__table-fill">
+          <DataTable
+            columns={columns}
+            data={metas}
+            rowKey={(row) => row.id}
+            loading={loading}
+            emptyText={t('metas.noMetas') || '暂无元信息'}
+            tableClassName="data-table--entity-list"
+            listLayoutId="metadata"
+            pagination={{ page, size: perPage, total }}
+            onPageChange={setPage}
+            onSizeChange={(size) => {
+              setPerPage(size)
+              setPage(1)
+            }}
+          />
         </div>
-        <button className="metadata__add-btn" onClick={() => handleOpenDrawer()}>
-          <Plus size={18} />
-          {t('metas.add') || '添加'}
-        </button>
-      </div>
-
-      {metas.length === 0 && !loading ? (
-        <div className="metadata__empty">
-          <div className="metadata__empty-icon">
-            <FolderOpen size={56} strokeWidth={1.2} />
-          </div>
-          <h3>{t('metas.noMetas') || '暂无元信息'}</h3>
-          <p>{t('metas.emptyTip') || '元信息可以为特定路径设置访问密码、写入权限和隐藏规则'}</p>
-          <button className="metadata__empty-btn" onClick={() => handleOpenDrawer()}>
-            <Plus size={18} />
-            <span>{t('metas.addFirst') || '添加第一条元信息'}</span>
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className="metadata__table-wrapper">
-            <table className="metadata__table">
-              <thead>
-                <tr>
-                  <th className="metadata__col-path">{t('metas.path') || '路径'}</th>
-                  <th className="metadata__col-status">{t('metas.password') || '密码'}</th>
-                  <th className="metadata__col-status">{t('metas.write') || '写入'}</th>
-                  <th className="metadata__col-status">{t('metas.hide') || '隐藏'}</th>
-                  <th className="metadata__col-preview">{t('metas.header') || '顶部说明'}</th>
-                  <th className="metadata__col-preview">{t('metas.readme') || '说明'}</th>
-                  <th className="metadata__col-actions">{t('common.operations') || '操作'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {metas.map(meta => (
-                  <tr key={meta.id}>
-                    <td>
-                      <div className="metadata__path-cell">
-                        <FolderOpen size={16} />
-                        <span>{meta.path}</span>
-                      </div>
-                    </td>
-                    <td>
-                      {meta.password ? (
-                        <span className="metadata__badge metadata__badge--warning">
-                          <Lock size={12} />
-                          {meta.p_sub && <span className="metadata__sub-tag">+子</span>}
-                        </span>
-                      ) : (
-                        <span className="metadata__badge metadata__badge--muted">-</span>
-                      )}
-                    </td>
-                    <td>
-                      {meta.write ? (
-                        <span className="metadata__badge metadata__badge--success">
-                          <Check size={12} />
-                          {meta.w_sub && <span className="metadata__sub-tag">+子</span>}
-                        </span>
-                      ) : (
-                        <span className="metadata__badge metadata__badge--muted">-</span>
-                      )}
-                    </td>
-                    <td>
-                      {meta.hide ? (
-                        <span className="metadata__badge metadata__badge--info">
-                          <EyeOff size={12} />
-                          {meta.h_sub && <span className="metadata__sub-tag">+子</span>}
-                        </span>
-                      ) : (
-                        <span className="metadata__badge metadata__badge--muted">-</span>
-                      )}
-                    </td>
-                    <td>
-                      {meta.header ? (
-                        <span className="metadata__text-preview" title={meta.header}>
-                          {meta.header.substring(0, 20)}{meta.header.length > 20 ? '...' : ''}
-                          {meta.header_sub && <span className="metadata__sub-tag">+子</span>}
-                        </span>
-                      ) : (
-                        <span className="metadata__badge metadata__badge--muted">-</span>
-                      )}
-                    </td>
-                    <td>
-                      {meta.readme ? (
-                        <span className="metadata__text-preview" title={meta.readme}>
-                          {meta.readme.substring(0, 20)}{meta.readme.length > 20 ? '...' : ''}
-                          {meta.r_sub && <span className="metadata__sub-tag">+子</span>}
-                        </span>
-                      ) : (
-                        <span className="metadata__badge metadata__badge--muted">-</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="metadata__actions">
-                        <button 
-                          className="metadata__action-btn" 
-                          onClick={() => handleOpenDrawer(meta)}
-                          title={t('common.edit') || '编辑'}
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button 
-                          className="metadata__action-btn metadata__action-btn--danger" 
-                          onClick={() => handleDelete(meta.id)}
-                          title={t('common.delete') || '删除'}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="metadata__footer">
-            <div className="metadata__page-size-selector">
-              <span>{t('common.total') || '共'} {total} {t('common.items') || '条'}，{t('common.perPage') || '每页'}</span>
-              <Select
-                value={perPage.toString()}
-                options={[
-                  { value: '10', label: '10' },
-                  { value: '20', label: '20' },
-                  { value: '50', label: '50' },
-                ]}
-                onChange={(value) => { setPerPage(Number(value)); setPage(1); }}
-              />
-            </div>
-            <div className="metadata__pagination">
-              <button 
-                className="metadata__page-btn"
-                disabled={page <= 1}
-                onClick={() => setPage(1)}
-              >
-                <ChevronsLeft size={16} />
-              </button>
-              <button 
-                className="metadata__page-btn"
-                disabled={page <= 1}
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <div className="metadata__page-numbers">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum: number
-                  if (totalPages <= 5) {
-                    pageNum = i + 1
-                  } else if (page <= 3) {
-                    pageNum = i + 1
-                  } else if (page >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i
-                  } else {
-                    pageNum = page - 2 + i
-                  }
-                  return (
-                    <button
-                      key={pageNum}
-                      className={`metadata__page-number ${page === pageNum ? 'metadata__page-number--active' : ''}`}
-                      onClick={() => setPage(pageNum)}
-                    >
-                      {pageNum}
-                    </button>
-                  )
-                })}
-              </div>
-              <button 
-                className="metadata__page-btn"
-                disabled={page >= totalPages}
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              >
-                <ChevronRight size={16} />
-              </button>
-              <button 
-                className="metadata__page-btn"
-                disabled={page >= totalPages}
-                onClick={() => setPage(totalPages)}
-              >
-                <ChevronsRight size={16} />
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+      </PageLayout>
 
       {showDrawer && (
         <div className={`metadata__drawer-overlay ${drawerClosing ? 'metadata__drawer-overlay--closing' : ''}`} onClick={handleCloseDrawer}>

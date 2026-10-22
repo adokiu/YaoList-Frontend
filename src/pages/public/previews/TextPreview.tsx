@@ -1,7 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Copy, Check, ChevronDown, Edit3, Save, X } from 'lucide-react'
+import { joinFsPath, streamUpload } from '../../../utils/openlistUpload'
+import { Copy, Check, Edit3, Save, X } from 'lucide-react'
+import FilePreviewDropdown from '../../../components/FilePreviewDropdown'
 import Prism from 'prismjs'
 import 'prismjs/themes/prism-tomorrow.css'
 import 'prismjs/components/prism-markup'
@@ -298,29 +300,14 @@ export default function TextPreview({ url, file, canEdit = false }: TextPreviewP
       const blob = new Blob([editContent], { type: 'text/plain;charset=utf-8' })
       const fileToUpload = new File([blob], filename, { type: 'text/plain' })
       
-      const formData = new FormData()
-      formData.append('path', targetPath)
-      formData.append('overwrite', 'true')
-      formData.append('file', fileToUpload)
-      
-      const response = await fetch('/api/fs/upload', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include'
-      })
-      
-      const result = await response.json()
-      if (result.code === 200) {
-        setContent(editContent)
-        setIsEditing(false)
-        // 重新刷新文件内容
-        const res = await fetch(url)
-        if (res.ok) {
-          const buffer = await res.arrayBuffer()
-          setRawData(buffer)
-        }
-      } else {
-        alert(result.message || t('preview.saveFailed'))
+      const fullPath = joinFsPath(targetPath || '/', filename)
+      await streamUpload(fileToUpload, fullPath, { overwrite: true })
+      setContent(editContent)
+      setIsEditing(false)
+      const res = await fetch(url)
+      if (res.ok) {
+        const buffer = await res.arrayBuffer()
+        setRawData(buffer)
       }
     } catch (err: any) {
       alert(err.message || t('preview.saveFailed'))
@@ -335,32 +322,29 @@ export default function TextPreview({ url, file, canEdit = false }: TextPreviewP
   const statusContent = (
     <>
       <span className="preview__text-status-item">{displayName}</span>
-      <span className="preview__text-status-item">{lines.length} {t('preview.lines')}</span>
-      <div className="preview__encoding-selector">
-        <button 
-          className="preview__encoding-btn"
-          onClick={() => setShowEncodingMenu(!showEncodingMenu)}
-        >
-          {ENCODINGS.find(e => e.value === encoding)?.label || encoding}
-          <ChevronDown size={14} />
-        </button>
-        {showEncodingMenu && (
-          <div className="preview__encoding-menu">
-            {ENCODINGS.map(enc => (
-              <button
-                key={enc.value}
-                className={`preview__encoding-item ${encoding === enc.value ? 'active' : ''}`}
-                onClick={() => {
-                  setEncoding(enc.value)
-                  setShowEncodingMenu(false)
-                }}
-              >
-                {enc.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <span className="preview__text-status-item">
+        {t('preview.lineCount', { count: lines.length })}
+      </span>
+      <FilePreviewDropdown
+        label={ENCODINGS.find(e => e.value === encoding)?.label || encoding}
+        open={showEncodingMenu}
+        onOpenChange={setShowEncodingMenu}
+        align="end"
+      >
+        {ENCODINGS.map(enc => (
+          <button
+            type="button"
+            key={enc.value}
+            className={`file-preview__dropdown-item ${encoding === enc.value ? 'active' : ''}`}
+            onClick={() => {
+              setEncoding(enc.value)
+              setShowEncodingMenu(false)
+            }}
+          >
+            {enc.label}
+          </button>
+        ))}
+      </FilePreviewDropdown>
     </>
   )
 
@@ -405,14 +389,16 @@ export default function TextPreview({ url, file, canEdit = false }: TextPreviewP
                 {copied ? <Check size={16} /> : <Copy size={16} />}
               </button>
             </div>
-            <div className="preview__text-line-numbers">
-              {lines.map((_, i) => (
-                <span key={i}>{i + 1}</span>
-              ))}
+            <div className="preview__text-code-scroll">
+              <div className="preview__text-line-numbers" aria-hidden="true">
+                {lines.map((_, i) => (
+                  <span key={i}>{i + 1}</span>
+                ))}
+              </div>
+              <pre className="preview__text-pre">
+                <code ref={codeRef} className={`language-${language}`} />
+              </pre>
             </div>
-            <pre className="preview__text-pre">
-              <code ref={codeRef} className={`language-${language}`} />
-            </pre>
           </div>
         )}
         

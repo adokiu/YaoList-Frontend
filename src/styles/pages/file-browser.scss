@@ -1,10 +1,11 @@
-@import '../variables';
-@import '../mixins';
-@import '../components/extract-dialog';
+@use '../mixins' as *;
+@use '../components/extract-dialog' as *;
 
 // 外层背景容器（在 FileRouter 中，不随子组件切换而重新挂载）
 .file-router-bg {
   min-height: 100vh;
+  max-width: 100%;
+  overflow-x: clip;
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
@@ -12,10 +13,11 @@
 
 .file-browser {
   width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
   min-height: 100vh;
   background: transparent;
   padding: 20px 20px 80px;
-  transition: background-color 0.3s ease;
   position: relative;
   animation: pageEnter 0.2s ease-out;
 
@@ -43,7 +45,8 @@
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
     }
     
-    .file-browser__page-footer-link {
+    .file-browser__page-footer-link,
+    .file-browser__page-footer-user {
       color: #fff;
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
     }
@@ -51,11 +54,6 @@
     .file-browser__page-footer-sep {
       color: rgba(255, 255, 255, 0.7);
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-    }
-    
-    .file-browser__vara-container svg path {
-      stroke: #fff !important;
-      filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 2px #667eea);
     }
   }
 
@@ -104,8 +102,8 @@
     display: flex;
     align-items: center;
     background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 10px;
     padding: 4px;
@@ -170,8 +168,8 @@
     right: 0;
     width: 260px;
     background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
@@ -820,11 +818,11 @@
   &__breadcrumb-card {
     max-width: 1200px;
     margin: 80px auto 20px;
-    padding: 14px 20px;
+    padding: 8px 16px;
     background: var(--bg-secondary);
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: margin 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -845,11 +843,11 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 10px;
+    padding: 2px 8px;
     border-radius: 8px;
     font-size: 14px;
     font-weight: 500;
-    color: #86868b;
+    color: var(--text-secondary);
     text-decoration: none;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
@@ -870,7 +868,8 @@
   }
 
   &__breadcrumb-separator {
-    color: var(--border-color);
+    color: var(--text-tertiary);
+    opacity: 0.85;
     flex-shrink: 0;
   }
 
@@ -882,7 +881,7 @@
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     overflow: visible;
-    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1), min-height 1s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: min-height 1s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   @keyframes fadeInUp {
@@ -1252,8 +1251,8 @@
     // 有自定义背景时 - 毛玻璃效果
     .has-custom-bg & {
       background: rgba(255, 255, 255, 0.25);
-      backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 255, 255, 0.3);
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
@@ -1386,13 +1385,21 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
     padding: 12px 20px;
     position: relative;
+    min-width: 0;
   }
 
   &__stats {
+    flex: 1 1 120px;
+    min-width: 0;
     font-size: 13px;
     color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   // 分页
@@ -1405,8 +1412,8 @@
     justify-content: center;
     gap: 2px;
     background: rgba(255, 255, 255, 0.65);
-    backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.4);
     border-radius: 12px;
     padding: 4px;
@@ -1472,16 +1479,18 @@
   &__per-page-trigger {
     padding: 4px 10px;
     background: rgba(255, 255, 255, 0.65);
-    backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.4);
     border-radius: 10px;
     font-size: 13px;
     color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.15s ease;
-    min-width: 70px;
+    min-width: 0;
+    max-width: 100%;
     text-align: center;
+    white-space: nowrap;
     user-select: none;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 
@@ -1507,9 +1516,13 @@
   &__per-page-dropdown {
     position: fixed;
     transform: translateX(-50%);
+
+    &--placed {
+      transform: none;
+    }
     background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.5);
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
@@ -1594,7 +1607,6 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid var(--border-color);
 
     h3 {
       margin: 0;
@@ -1676,7 +1688,6 @@
     justify-content: flex-end;
     gap: 10px;
     padding: 16px 20px;
-    border-top: 1px solid var(--border-color);
   }
 
   &__dialog-btn {
@@ -1851,7 +1862,6 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid var(--border-color);
 
     h3 {
       font-size: 17px;
@@ -1946,7 +1956,6 @@
     display: flex;
     gap: 8px;
     padding: 16px 20px;
-    border-top: 1px solid var(--border-color);
     background: var(--bg-tertiary);
   }
 
@@ -2016,7 +2025,6 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid var(--border-color);
 
     h3 {
       margin: 0;
@@ -2185,7 +2193,6 @@
     justify-content: flex-end;
     gap: 10px;
     padding: 16px 20px;
-    border-top: 1px solid var(--border-color);
   }
 
   &__path-modal-btn {
@@ -2737,6 +2744,8 @@
     align-items: center;
     gap: 8px;
     margin-left: auto;
+    min-width: 0;
+    overflow: visible;
   }
 
   &__toolbar {
@@ -2744,7 +2753,6 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    border-bottom: 1px solid var(--border-color);
   }
 
   &__dropdown {
@@ -2762,7 +2770,10 @@
     color: var(--text-primary);
     font-size: 14px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
 
     &:hover {
       background: var(--bg-secondary);
@@ -2770,24 +2781,55 @@
     }
 
     svg {
-      transition: transform 0.2s ease;
+      flex-shrink: 0;
+      transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
       &.rotate {
         transform: rotate(180deg);
       }
     }
   }
 
+  &__dropdown--open &__dropdown-btn {
+    border-color: var(--accent-color);
+  }
+
+  .glass-enabled &__dropdown--open &__dropdown-btn {
+    border-color: transparent;
+    box-shadow: none;
+  }
+
   &__dropdown-menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
+    z-index: 1100;
     min-width: 160px;
+    pointer-events: auto;
+
+    &--fixed {
+      position: fixed;
+    }
+  }
+
+  &__dropdown-menu-surface {
+    min-width: 100%;
+    border-radius: 10px;
+    overflow: hidden;
+    animation: filePreviewDropdownIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 10px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-    z-index: 100;
-    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  }
+
+  .glass-enabled &__dropdown-btn:hover {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  @keyframes filePreviewDropdownIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   &__dropdown-item {
@@ -2879,6 +2921,13 @@
       align-self: flex-start;
       width: 100%;
     }
+
+    .preview--text {
+      align-self: stretch;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
   }
 
   &__info {
@@ -2922,37 +2971,9 @@
   text-decoration: none;
 }
 
-.file-browser__vara-container {
-  display: inline-block;
-  vertical-align: middle;
-  overflow: visible;
-  width: 75px;
-  height: 20px;
-  position: relative;
-  
-  svg {
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    overflow: visible;
-    width: 75px !important;
-    height: 20px !important;
-  }
-  
-  svg path {
-    filter: drop-shadow(0 0 1px #667eea);
-    animation: glowPulse 2s ease-in-out infinite;
-  }
-}
-
-@keyframes glowPulse {
-  0%, 100% {
-    filter: drop-shadow(0 0 1px #667eea);
-  }
-  50% {
-    filter: drop-shadow(0 0 2px #764ba2);
-  }
+.file-browser__page-footer-user {
+  color: var(--text-primary);
+  font-weight: 700;
 }
 
 .file-browser__page-footer-sep {
@@ -3098,7 +3119,7 @@
   background: var(--bg-secondary);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: margin 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 
   &--header {
     margin: 80px auto 20px;  // 与面包屑卡片相同（顶部80px，底部20px）
@@ -3546,8 +3567,8 @@
   // 有自定义背景时 - 毛玻璃效果
   .has-custom-bg & {
     background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.4);
   }
 }

@@ -1,12 +1,16 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, X, CheckCircle, XCircle, ChevronsLeft, ChevronsRight } from 'lucide-react'
-import { api } from "../../utils/api";
-import { useToast } from "../../components/Toast";
-import { Select } from "../../components/Select";
-import { ConfirmDialog } from "../../components/ConfirmDialog";
-import "../../styles/pages/groups.scss";
-import "../../styles/components/batch-bar.scss"
+import { Plus, Edit, Trash2, X } from 'lucide-react'
+import { api } from '../../utils/api'
+import { useToast } from '../../components/Toast'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { PageLayout } from '../../components/PageLayout/PageLayout'
+import { DataTable, type Column } from '../../components/DataTable/DataTable'
+import { SearchInput } from '../../components/SearchInput/SearchInput'
+import { Button } from '../../components/Button/Button'
+import { TableActions, TableCell, TableLinkButton } from '../../components/manage/tableCells'
+import '../../styles/pages/groups.scss'
+import '../../styles/components/batch-bar.scss'
 
 interface UserGroup {
   id: number
@@ -179,7 +183,7 @@ export default function Groups() {
   }
 
 
-  const handleDelete = (groupId: number, groupName: string) => {
+  const handleDelete = useCallback((groupId: number, groupName: string) => {
     setConfirmDialog({
       isOpen: true,
       title: t('groups.deleteConfirm'),
@@ -192,10 +196,10 @@ export default function Groups() {
         } catch (err) {
           toast.error(t('groups.deleteFailed'))
         }
-        setConfirmDialog({ ...confirmDialog, isOpen: false })
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }))
       }
     })
-  }
+  }, [t, toast])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -216,44 +220,125 @@ export default function Groups() {
     }
   }
 
-  if (loading && !data) {
-    return (
-      <div className="groups__container">
-        <div className="groups__loading">加载中...</div>
-      </div>
-    )
-  }
+  const openCreate = useCallback(() => {
+    setEditingGroup(null)
+    setShowEditDialog(true)
+  }, [])
+
+  const columns: Column<UserGroup>[] = useMemo(
+    () => [
+      {
+        key: 'id',
+        title: t('groups.id'),
+        fixedWidth: true,
+        width: 72,
+        render: (group) => (
+          <TableCell>
+            <code className="groups__unique-id">{group.id}</code>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'name',
+        title: t('groups.name'),
+        render: (group) => (
+          <TableCell large>
+            {group.name}
+            {group.is_admin && <span className="groups__admin-badge">Admin</span>}
+          </TableCell>
+        ),
+      },
+      {
+        key: 'description',
+        title: t('groups.description'),
+        render: (group) => <TableCell>{group.description || '-'}</TableCell>,
+      },
+      {
+        key: 'user_count',
+        title: t('groups.userCount'),
+        fixedWidth: true,
+        width: 88,
+        render: (group) => <TableCell>{group.user_count ?? 0}</TableCell>,
+      },
+      {
+        key: 'permissions',
+        title: t('groups.permissions'),
+        render: (group) => (
+          <div className="groups__permissions">
+            <span className={`groups__perm-dot ${group.read_files ? 'groups__perm-dot--active' : ''}`} title={t('groups.readFiles')} />
+            <span className={`groups__perm-dot ${group.create_upload ? 'groups__perm-dot--active' : ''}`} title={t('groups.createUpload')} />
+            <span className={`groups__perm-dot ${group.rename_files ? 'groups__perm-dot--active' : ''}`} title={t('groups.renameFiles')} />
+            <span className={`groups__perm-dot ${group.move_files ? 'groups__perm-dot--active' : ''}`} title={t('groups.moveFiles')} />
+            <span className={`groups__perm-dot ${group.copy_files ? 'groups__perm-dot--active' : ''}`} title={t('groups.copyFiles')} />
+            <span className={`groups__perm-dot ${group.delete_files ? 'groups__perm-dot--active' : ''}`} title={t('groups.deleteFiles')} />
+            <span className={`groups__perm-dot ${group.allow_direct_link ? 'groups__perm-dot--active' : ''}`} title={t('groups.allowDirectLink')} />
+            <span className={`groups__perm-dot ${group.allow_share ? 'groups__perm-dot--active' : ''}`} title={t('groups.allowShare')} />
+            <span className={`groups__perm-dot ${group.webdav_enabled ? 'groups__perm-dot--active' : ''}`} title={t('groups.webdavEnabled')} />
+            <span className={`groups__perm-dot ${group.ftp_enabled ? 'groups__perm-dot--active' : ''}`} title={t('groups.ftpEnabled')} />
+          </div>
+        ),
+      },
+      {
+        key: 'created_at',
+        title: t('groups.createdAt'),
+        render: (group) => (
+          <TableCell>
+            {new Date(group.created_at).toLocaleString('zh-CN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </TableCell>
+        ),
+      },
+      {
+        key: 'actions',
+        title: t('groups.actions'),
+        render: (group) => (
+          <TableActions>
+            <TableLinkButton
+              onClick={() => {
+                setEditingGroup(group)
+                setShowEditDialog(true)
+              }}
+            >
+              <Edit size={14} />
+              {t('groups.edit')}
+            </TableLinkButton>
+            <TableLinkButton danger onClick={() => handleDelete(group.id, group.name)}>
+              <Trash2 size={14} />
+              {t('groups.delete')}
+            </TableLinkButton>
+          </TableActions>
+        ),
+      },
+    ],
+    [t, handleDelete],
+  )
+
+  const selectedKeys = useMemo(() => new Set(selectedGroups), [selectedGroups])
 
   return (
-    <div className="groups__container">
-      <div className="groups__header">
-        <h1>{t('groups.title')}</h1>
-        <div className="groups__actions">
-          
-          <div className="groups__search">
-            <Search size={18} />
-            <input
-              type="text"
-              placeholder={t('groups.searchPlaceholder')}
-              value={search}
-              onChange={(e) => handleSearch(e.target.value)}
-            />
-          </div>
-          <button 
-            className="groups__add-btn"
-            onClick={() => {
-              setEditingGroup(null)
-              setShowEditDialog(true)
-            }}
-          >
-            <Plus size={18} />
+    <div className="manage-page groups__container">
+      <PageLayout
+        leftSlot={
+          <SearchInput
+            value={search}
+            placeholder={t('groups.searchPlaceholder')}
+            onChange={handleSearch}
+          />
+        }
+        rightSlot={
+          <Button size="sm" onClick={openCreate}>
+            <Plus size={16} />
             {t('groups.addGroup')}
-          </button>
-        </div>
-      </div>
-
-      {selectedGroups.length > 0 && (
-        <div className="groups__batch-bar">
+          </Button>
+        }
+      >
+        {selectedGroups.length > 0 && (
+          <div className="manage-page__batch groups__batch-bar">
           <span className="groups__batch-count">{t('groups.batchSelected')} {selectedGroups.length}</span>
           <div className="groups__batch-actions">
             <button className="groups__batch-btn">{t('groups.batchEnable')}</button>
@@ -264,210 +349,33 @@ export default function Groups() {
             <button className="groups__batch-btn" onClick={() => setSelectedGroups([])}>{t('groups.cancelSelection')}</button>
           </div>
         </div>
-      )}
+        )}
 
-      <div className="groups__table-container">
-        <table className="groups__table">
-                    <thead>
-            <tr>
-              <th>
-                <input
-                  type="checkbox"
-                  checked={selectedGroups.length === (data?.groups.length || 0) && (data?.groups.length || 0) > 0}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelectedGroups(data.groups.map(g => g.id))
-                    } else {
-                      setSelectedGroups([])
-                    }
-                  }}
-                />
-              </th>
-              <th>{t('groups.id')}</th>
-              <th>{t('groups.name')}</th>
-              <th>{t('groups.description')}</th>
-              <th>{t('groups.userCount')}</th>
-              <th>{t('groups.permissions')}</th>
-              <th>{t('groups.createdAt')}</th>
-              <th>{t('groups.actions')}</th>
-            </tr>
-          </thead>
-          <tbody>
-                        {data?.groups.map((group) => (
-              <tr key={group.id}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={selectedGroups.includes(group.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedGroups([...selectedGroups, group.id])
-                      } else {
-                        setSelectedGroups(selectedGroups.filter(id => id !== group.id))
-                      }
-                    }}
-                  />
-                </td>
-                <td>
-                  <code className="groups__unique-id">{group.id}</code>
-                </td>
-                <td>
-                  <div className="groups__name">
-                    {group.name}
-                    {group.is_admin && <span className="groups__admin-badge">Admin</span>}
-                  </div>
-                </td>
-                <td>
-                  <span className="groups__description">{group.description || '-'}</span>
-                </td>
-                <td>
-                  <span className="groups__user-count">{group.user_count || 0}</span>
-                </td>
-                <td>
-                  <div className="groups__permissions">
-                    <span className={`groups__perm-dot ${group.read_files ? 'groups__perm-dot--active' : ''}`} title={t('groups.readFiles')}></span>
-                    <span className={`groups__perm-dot ${group.create_upload ? 'groups__perm-dot--active' : ''}`} title={t('groups.createUpload')}></span>
-                    <span className={`groups__perm-dot ${group.rename_files ? 'groups__perm-dot--active' : ''}`} title={t('groups.renameFiles')}></span>
-                    <span className={`groups__perm-dot ${group.move_files ? 'groups__perm-dot--active' : ''}`} title={t('groups.moveFiles')}></span>
-                    <span className={`groups__perm-dot ${group.copy_files ? 'groups__perm-dot--active' : ''}`} title={t('groups.copyFiles')}></span>
-                    <span className={`groups__perm-dot ${group.delete_files ? 'groups__perm-dot--active' : ''}`} title={t('groups.deleteFiles')}></span>
-                    <span className={`groups__perm-dot ${group.allow_direct_link ? 'groups__perm-dot--active' : ''}`} title={t('groups.allowDirectLink')}></span>
-                    <span className={`groups__perm-dot ${group.allow_share ? 'groups__perm-dot--active' : ''}`} title={t('groups.allowShare')}></span>
-                    <span className={`groups__perm-dot ${group.webdav_enabled ? 'groups__perm-dot--active' : ''}`} title={t('groups.webdavEnabled')}></span>
-                    <span className={`groups__perm-dot ${group.ftp_enabled ? 'groups__perm-dot--active' : ''}`} title={t('groups.ftpEnabled')}></span>
-                  </div>
-                </td>
-                <td>
-                  <span className="groups__timestamp">
-                    {new Date(group.created_at).toLocaleString('zh-CN', {year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'})}
-                  </span>
-                </td>
-                <td>
-                  <div className="groups__table-actions">
-                    <button 
-                      className="groups__icon-btn"
-                      title={t('groups.edit')}
-                      onClick={() => {
-                        setEditingGroup(group)
-                        setShowEditDialog(true)
-                      }}
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button 
-                      className="groups__icon-btn groups__icon-btn--danger" 
-                      title={t('groups.delete')}
-                      onClick={() => handleDelete(group.id, group.name)}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {data && (
-        <div className="groups__footer">
-          <div className="groups__page-size-selector">
-            <span>{t('groups.perPage')}</span>
-            <Select
-              value={pageSize.toString()}
-              onChange={(value) => {
-                setPageSize(Number(value))
-                setCurrentPage(1)
-              }}
-              options={[
-                { value: '10', label: '10' },
-                { value: '20', label: '20' },
-                { value: '50', label: '50' },
-                { value: '100', label: '100' }
-              ]}
-            />
-            <span>{t('groups.items')}</span>
-          </div>
-          
-          <div className="groups__pagination">
-            <button
-              className="groups__page-btn"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(1)}
-              title={t('groups.firstPage')}
-            >
-              <ChevronsLeft size={16} />
-            </button>
-            <button
-              className="groups__page-btn"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(currentPage - 1)}
-              title={t('groups.prevPage')}
-            >
-              <ChevronLeft size={16} />
-            </button>
-            
-            <div className="groups__page-numbers">
-              {Array.from({ length: Math.min(5, data.total_pages) }, (_, i) => {
-                let pageNum;
-                if (data.total_pages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= data.total_pages - 2) {
-                  pageNum = data.total_pages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
-                
-                return (
-                  <button
-                    key={pageNum}
-                    className={`groups__page-number ${currentPage === pageNum ? 'users__page-number--active' : ''}`}
-                    onClick={() => setCurrentPage(pageNum)}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-            </div>
-            
-            <button
-              className="groups__page-btn"
-              disabled={currentPage === data.total_pages}
-              onClick={() => setCurrentPage(currentPage + 1)}
-              title="下一页"
-            >
-              <ChevronRight size={16} />
-            </button>
-            <button
-              className="groups__page-btn"
-              disabled={currentPage === data.total_pages}
-              onClick={() => setCurrentPage(data.total_pages)}
-              title="末页"
-            >
-              <ChevronsRight size={16} />
-            </button>
-            
-            <div className="groups__page-jump">
-              <span>{t('groups.jumpTo')}</span>
-              <input
-                type="number"
-                min="1"
-                max={data.total_pages}
-                value={currentPage}
-                onChange={(e) => {
-                  const page = Number(e.target.value)
-                  if (page >= 1 && page <= data.total_pages) {
-                    setCurrentPage(page)
-                  }
-                }}
-              />
-              <span>{t('groups.page')}</span>
-            </div>
-          </div>
+        <div className="manage-page__table-fill">
+          <DataTable
+            columns={columns}
+            data={data?.groups ?? []}
+            rowKey={(row) => row.id}
+            loading={loading}
+            emptyText={t('groups.noData', { defaultValue: '暂无数据' })}
+            selectable
+            selectedKeys={selectedKeys}
+            onSelectionChange={(keys) => setSelectedGroups([...keys].map((k) => Number(k)))}
+            tableClassName="data-table--entity-list"
+            listLayoutId="groups"
+            pagination={
+              data
+                ? { page: currentPage, size: pageSize, total: data.total }
+                : undefined
+            }
+            onPageChange={setCurrentPage}
+            onSizeChange={(size) => {
+              setPageSize(size)
+              setCurrentPage(1)
+            }}
+          />
         </div>
-      )}
+      </PageLayout>
 
       {showEditDialog && (
         <div className={`groups__drawer-overlay ${drawerClosing ? 'groups__drawer-overlay--closing' : ''}`} onClick={() => { setDrawerClosing(true); setTimeout(() => { setShowEditDialog(false); setDrawerClosing(false); }, 300); }}>

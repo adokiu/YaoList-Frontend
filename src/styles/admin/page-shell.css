@@ -1,0 +1,281 @@
+/* 内容区宽度仅由 Dashboard 的 .page-container--entity-list 统一约束 */
+.admin-page {
+  width: 100%;
+  max-width: 100%;
+  margin-inline: auto;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.admin-page--narrow,
+.admin-page--medium {
+  max-width: 100%;
+}
+
+.admin-page__header,
+.admin-page .page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.admin-page .page-header__title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-black);
+  margin: 0;
+}
+
+.admin-page .page-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-page__header-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-page__desc {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-gray-600);
+  max-width: 56rem;
+}
+
+.admin-page__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-page__toolbar-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+.admin-page__footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.admin-page__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  font-size: 14px;
+  color: var(--color-gray-500);
+}
+
+/* 玻璃卡片：统一旧版 section / card */
+.admin-page .basic-settings__section,
+.admin-page .search-page__card,
+.admin-page .drivers__card,
+.admin-page .load-balance__card,
+.admin-page .backup-restore__log-container,
+.admin-page .about__content,
+.admin-page .backup-restore__options {
+  background: var(--glass-panel);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--admin-border-radius, 8px);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  box-shadow: none;
+}
+
+.admin-page .basic-settings__section {
+  margin-bottom: 16px;
+  padding: 20px;
+}
+
+.admin-page .basic-settings__version-info {
+  background: rgba(20, 24, 32, 0.04);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+}
+
+.dark .admin-page .basic-settings__version-info,
+[data-theme='dark'] .admin-page .basic-settings__version-info {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.admin-page .search-page__card {
+  overflow: hidden;
+}
+
+.admin-page .search-page__card-header {
+  border-bottom-color: var(--glass-border);
+}
+
+.admin-page .search-page__setting-row {
+  border-bottom-color: var(--glass-border);
+}
+
+.admin-page .drivers__card {
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.admin-page .drivers__card:hover {
+  border-color: rgba(20, 24, 32, 0.16);
+}
+
+.admin-page .load-balance__card {
+  box-shadow: none;
+}
+
+.admin-page .about__content {
+  padding: 20px 24px;
+}
+
+/* 表单控件 */
+.admin-page .basic-settings__input,
+.admin-page .basic-settings__textarea,
+.admin-page .search-page__input,
+.admin-page .search-page__textarea,
+.admin-page .drivers__form-field input[type='text'],
+.admin-page .drivers__form-field input[type='number'],
+.admin-page .drivers__form-field textarea,
+.admin-page .load-balance__input,
+.admin-page .load-balance__drawer textarea {
+  background: var(--color-white);
+  border: 1px solid var(--color-gray-200);
+  border-radius: 8px;
+  color: var(--color-black);
+  font-family: inherit;
+  font-size: 14px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.admin-page .basic-settings__input:focus,
+.admin-page .basic-settings__textarea:focus,
+.admin-page .search-page__input:focus,
+.admin-page .search-page__textarea:focus {
+  outline: none;
+  border-color: var(--color-gray-800);
+  box-shadow: 0 0 0 3px rgba(20, 24, 32, 0.06);
+}
+
+.admin-page .basic-settings__label,
+.admin-page .search-page__label,
+.admin-page .search-page__setting-label {
+  color: var(--color-black);
+  font-weight: 600;
+}
+
+.admin-page .basic-settings__hint,
+.admin-page .search-page__setting-desc,
+.admin-page .load-balance__desc {
+  color: var(--color-gray-500);
+}
+
+/* 主按钮：与 Tsukiyo 黑底一致 */
+.admin-page .basic-settings__btn--primary,
+.admin-page .basic-settings__save-btn,
+.admin-page .search-page__btn--primary,
+.admin-page .drivers__add-btn,
+.admin-page .load-balance__add-btn,
+.admin-page .load-balance__empty-btn,
+.admin-page .backup-restore__button--primary {
+  background: var(--color-black);
+  color: var(--color-white);
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-weight: 500;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.admin-page .basic-settings__btn--primary:hover:not(:disabled),
+.admin-page .basic-settings__save-btn:hover:not(:disabled),
+.admin-page .search-page__btn--primary:hover:not(:disabled),
+.admin-page .drivers__add-btn:hover,
+.admin-page .load-balance__add-btn:hover,
+.admin-page .backup-restore__button--primary:hover:not(:disabled) {
+  background: var(--color-gray-800);
+}
+
+.admin-page .basic-settings__btn--secondary,
+.admin-page .search-page__btn--secondary,
+.admin-page .backup-restore__button:not(.backup-restore__button--primary),
+.admin-page .about__btn {
+  background: var(--color-white);
+  border: 1px solid var(--color-gray-200);
+  color: var(--color-black);
+  border-radius: 8px;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.admin-page .basic-settings__btn--secondary:hover,
+.admin-page .search-page__btn--secondary:hover,
+.admin-page .backup-restore__button:not(.backup-restore__button--primary):hover:not(:disabled),
+.admin-page .about__btn:hover {
+  background: var(--color-gray-50);
+  border-color: var(--color-gray-300);
+}
+
+.admin-page .drivers__search {
+  background: var(--color-white);
+  border-color: var(--color-gray-200);
+  border-radius: 8px;
+}
+
+.admin-page .drivers__search:focus-within {
+  border-color: var(--color-gray-800);
+  box-shadow: 0 0 0 3px rgba(20, 24, 32, 0.06);
+}
+
+.admin-page .backup-restore__actions {
+  margin-bottom: 16px;
+}
+
+.admin-page .backup-restore__button {
+  box-shadow: none;
+}
+
+.admin-page .backup-restore__button:hover:not(:disabled) {
+  transform: none;
+}
+
+.admin-page .load-balance__empty {
+  background: var(--glass-panel);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--admin-border-radius, 8px);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  box-shadow: none;
+}
+
+.admin-page .backup-restore__log-container {
+  overflow: hidden;
+}
+
+.admin-page .backup-restore__options {
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.admin-page .admin-page__placeholder {
+  margin: 0;
+  padding: 20px;
+  font-size: 14px;
+  color: var(--color-gray-600);
+  background: var(--glass-panel);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--admin-border-radius, 8px);
+}

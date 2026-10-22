@@ -1,5 +1,7 @@
 // 通用混合宏
-@import './variables';
+@forward './variables';
+@use 'sass:color';
+@use './variables' as *;
 
 // 卡片样式
 @mixin card {
@@ -50,7 +52,7 @@
   color: $text-primary;
 
   &:hover:not(:disabled) {
-    background: darken($bg-tertiary, 5%);
+    background: color.adjust($bg-tertiary, $lightness: -5%);
   }
 }
 

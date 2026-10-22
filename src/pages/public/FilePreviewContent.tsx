@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef, Suspense, useContext, useCallback } from 'react'
-import Vara from 'vara'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { SharedContext } from './FileRouter'
 import { 
-  ChevronRight, ChevronDown, Home, File,
+  ChevronRight, Home, File,
   Sun, Moon, Languages, Lock, Loader2
 } from 'lucide-react'
 import { api } from '../../utils/api'
 import UserSettingsSidebar from '../../components/UserSettingsSidebar'
+import FilePreviewDropdown from '../../components/FilePreviewDropdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -196,8 +196,6 @@ export default function FilePreviewContent() {
   const { siteTitle, siteIcon, darkMode, language, hasBackground, setPageState, setOnPasswordSubmit } = shared
   
   const currentPath = pathParam || ''
-  const varaInitialized = useRef(false)
-  
   // 元信息相关状态
   const [readme, setReadme] = useState('')
   const [header, setHeader] = useState('')
@@ -535,29 +533,6 @@ export default function FilePreviewContent() {
     checkLogin()
   }, [])
 
-  // Vara.js 手写动画
-  useEffect(() => {
-    if (varaInitialized.current) return
-    const container = document.getElementById('vara-container-preview')
-    
-    if (container && container.children.length === 0) {
-      varaInitialized.current = true
-      const playAnimation = () => {
-        container.innerHTML = ''
-        const vara = new Vara(
-          '#vara-container-preview',
-          'https://cdn.jsdelivr.net/npm/vara@1.4.0/fonts/Satisfy/SatisfySL.json',
-          [{ text: 'YaoList', fontSize: 20, strokeWidth: 1.5, duration: 2000 }],
-          { strokeWidth: 1.5, color: '#667eea' }
-        )
-        vara.animationEnd(() => {
-          setTimeout(playAnimation, 1500)
-        })
-      }
-      playAnimation()
-    }
-  }, [])
-
   // 站点设置已移到 FileRouter 加载
   useEffect(() => {
     // 更新页面标题
@@ -603,31 +578,25 @@ export default function FilePreviewContent() {
       {/* 预览模式选择器（不等待文件信息加载完成） */}
       {previewers.length > 0 && (
         <div className="file-preview__toolbar">
-          <div className="file-preview__dropdown">
-            <button 
-              className="file-preview__dropdown-btn"
-              onClick={() => setShowPreviewMenu(!showPreviewMenu)}
-            >
-              <span>{currentPreviewer?.name ? t(currentPreviewer.name) : t('filePreview.selectPreviewMode')}</span>
-              <ChevronDown size={16} className={showPreviewMenu ? 'rotate' : ''} />
-            </button>
-            {showPreviewMenu && (
-              <div className="file-preview__dropdown-menu">
-                {previewers.map(p => (
-                  <button
-                    key={p.name}
-                    className={`file-preview__dropdown-item ${currentPreviewer?.name === p.name ? 'active' : ''}`}
-                    onClick={() => {
-                      setCurrentPreviewer(p)
-                      setShowPreviewMenu(false)
-                    }}
-                  >
-                    {t(p.name)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <FilePreviewDropdown
+            label={currentPreviewer?.name ? t(currentPreviewer.name) : t('filePreview.selectPreviewMode')}
+            open={showPreviewMenu}
+            onOpenChange={setShowPreviewMenu}
+          >
+            {previewers.map(p => (
+              <button
+                type="button"
+                key={p.name}
+                className={`file-preview__dropdown-item ${currentPreviewer?.name === p.name ? 'active' : ''}`}
+                onClick={() => {
+                  setCurrentPreviewer(p)
+                  setShowPreviewMenu(false)
+                }}
+              >
+                {t(p.name)}
+              </button>
+            ))}
+          </FilePreviewDropdown>
           {/* 文本预览状态信息插槽 */}
           <div id="text-preview-status-slot" className="file-preview__status-slot"></div>
         </div>

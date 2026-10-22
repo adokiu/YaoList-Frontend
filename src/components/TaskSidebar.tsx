@@ -1,29 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useTaskEventsSse, type SidebarTask } from '../utils/taskEventsSse'
 import { X, Upload, Download, Copy, Move, Trash2, CheckCircle, XCircle, Clock, Loader2, Archive, Pause, Play, Square } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import '../styles/components/task-sidebar.scss'
 
-interface Task {
-  id: string
-  task_type: 'upload' | 'download' | 'copy' | 'move' | 'delete' | 'extract'
-  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
-  name: string
-  source_path: string
-  target_path?: string
-  total_size: number
-  processed_size: number
-  total_files: number
-  processed_files: number
-  progress: number
-  speed: number
-  eta_seconds?: number
-  created_at: string
-  started_at?: string
-  finished_at?: string
-  error?: string
-  user_id?: number
-  current_file?: string  // 当前正在处理的文件
-}
+type Task = SidebarTask & { user_id?: number }
 
 interface TaskSidebarProps {
   visible: boolean
@@ -36,8 +17,10 @@ interface TaskSidebarProps {
 export default function TaskSidebar({ visible, onClose, alwaysConnect = false, onResumeUpload, onCancelUpload }: TaskSidebarProps) {
   const { t } = useTranslation()
   const [tasks, setTasks] = useState<Task[]>([])
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const isFetchingRef = useRef(false)
+  const handleTasks = useCallback((list: SidebarTask[]) => {
+    setTasks(list as Task[])
+  }, [])
+  useTaskEventsSse(alwaysConnect || visible, handleTasks)
   const [showExactTime, setShowExactTime] = useState<Record<string, boolean>>({}) // 记录哪些任务显示具体时间
   const [isClosing, setIsClosing] = useState(false) // 关闭动画状态
   const [shouldRender, setShouldRender] = useState(false) // 是否应该渲染
@@ -170,6 +153,22 @@ export default function TaskSidebar({ visible, onClose, alwaysConnect = false, o
   }
   
   // 获取状态文本
+  const uploadActivityLabel = (task: Task) => {
+    if (task.upload_phase === 'backending') {
+      return t('taskSidebar.statusBackending', { defaultValue: '写入存储' })
+    }
+    if (task.upload_phase === 'uploading') {
+      return t('taskSidebar.statusUploading', { defaultValue: '上传中' })
+    }
+    if (task.openlist_status === 'backending') {
+      return t('taskSidebar.statusBackending', { defaultValue: '写入存储' })
+    }
+    if (task.openlist_status === 'uploading') {
+      return t('taskSidebar.statusUploading', { defaultValue: '上传中' })
+    }
+    return task.openlist_status || getStatusText(task.status)
+  }
+
   const getStatusText = (status: string) => {
     switch (status) {
       case 'pending': return t('taskSidebar.statusPending')
@@ -211,52 +210,6 @@ export default function TaskSidebar({ visible, onClose, alwaysConnect = false, o
     }
   }
 
-  // 轮询获取任务列表
-  const fetchTasks = async () => {
-    if (isFetchingRef.current) return
-    isFetchingRef.current = true
-    try {
-      const res = await fetch('/api/tasks', { credentials: 'include' })
-      if (res.ok) {
-        const data = await res.json()
-        if (data.code === 200 && data.data) {
-          setTasks(data.data)
-        }
-      }
-    } catch (e) {
-      console.error('Failed to fetch tasks:', e)
-    } finally {
-      isFetchingRef.current = false
-    }
-  }
-
-  // 启动轮询
-  const startPolling = () => {
-    if (pollingRef.current) return
-    fetchTasks() // 立即获取一次
-    pollingRef.current = setInterval(fetchTasks, 1000) // 每秒轮询
-  }
-
-  // 停止轮询
-  const stopPolling = () => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current)
-      pollingRef.current = null
-    }
-  }
-
-  useEffect(() => {
-    // 当alwaysConnect为true或visible时启动轮询
-    if (alwaysConnect || visible) {
-      startPolling()
-    }
-    
-    return () => {
-      // 始终在卸载或依赖变化时清理，避免残留多条定时器
-      stopPolling()
-    }
-  }, [visible, alwaysConnect])
-
   // 清除已完成任务（保留运行中和中断的任务）
   const handleClearCompleted = async () => {
     try {
@@ -272,14 +225,19 @@ export default function TaskSidebar({ visible, onClose, alwaysConnect = false, o
   // 取消任务
   const handleCancelTask = async (taskId: string, taskType?: string) => {
     try {
-      // 如果是上传任务，同时通知前端取消
-      if (taskType === 'upload' && onCancelUpload) {
-        onCancelUpload(taskId)
+      if (taskType === 'upload') {
+        onCancelUpload?.(taskId)
+        await fetch(`/api/task/upload/cancel?tid=${encodeURIComponent(taskId)}`, {
+          method: 'POST',
+          credentials: 'include',
+        })
+        return
       }
       await fetch('/api/tasks/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task_id: taskId })
+        credentials: 'include',
+        body: JSON.stringify({ task_id: taskId }),
       })
     } catch (e) {
       console.error('Failed to cancel task:', e)
@@ -441,6 +399,11 @@ export default function TaskSidebar({ visible, onClose, alwaysConnect = false, o
                       {task.status === 'running' ? formatSpeed(task.speed) : '--'}
                     </span>
                   )}
+                  {task.task_type === 'upload' && task.status === 'running' && (
+                    <span className="task-sidebar__item-status">
+                      {uploadActivityLabel(task)}
+                    </span>
+                  )}
                   <span className="task-sidebar__item-eta">
                     ETA: {formatEta(task.eta_seconds)}
                   </span>
@@ -484,7 +447,7 @@ export default function TaskSidebar({ visible, onClose, alwaysConnect = false, o
                     {task.total_files > 1 && ` (${task.processed_files}/${task.total_files})`}
                   </span>
                   <span className="task-sidebar__item-status">
-                    {getStatusText(task.status)}
+                    {task.task_type === 'upload' ? uploadActivityLabel(task) : getStatusText(task.status)}
                   </span>
                 </div>
                 <div className="task-sidebar__item-actions">

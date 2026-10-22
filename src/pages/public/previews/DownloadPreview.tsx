@@ -283,114 +283,212 @@ const GPS_TAGS: Record<number, string> = {
   0x0005: 'altRef', 0x0006: 'alt',
 }
 
-// 从 ArrayBuffer 读取 EXIF
-const readExifFromBuffer = async (url: string): Promise<ExifData | null> => {
+const EXIF_HEAD_BYTES = 1024 * 1024
+const EXIF_TAIL_BYTES = 512 * 1024
+
+const readU32BE = (data: Uint8Array, offset: number): number =>
+  ((data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3]) >>> 0
+
+const exifPayloadLooksValid = (exif: ExifData | null): boolean => {
+  if (!exif) return false
+  return !!(
+    exif.make || exif.model || exif.lensModel || exif.dateTimeOriginal || exif.dateTime ||
+    exif.focalLength !== undefined || exif.fNumber !== undefined || exif.exposureTime !== undefined ||
+    exif.iso !== undefined || exif.gpsLatitude !== undefined
+  )
+}
+
+async function fetchExifByteRange(url: string, start: number, endInclusive: number): Promise<ArrayBuffer | null> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 12000)
   try {
-    const response = await fetch(url)
-    const buffer = await response.arrayBuffer()
-    const dataView = new DataView(buffer)
-    const data = new Uint8Array(buffer)
-    
-    // 检查文件类型
-    const firstBytes = dataView.getUint16(0)
-    
-    // JPEG 格式
-    if (firstBytes === 0xFFD8) {
-      let offset = 2
-      while (offset < buffer.byteLength - 4) {
-        const marker = dataView.getUint16(offset)
-        if (marker === 0xFFE1) { // APP1 (EXIF)
-          // 检查 "Exif\0\0"
-          const exifHeader = String.fromCharCode(
-            dataView.getUint8(offset + 4), dataView.getUint8(offset + 5),
-            dataView.getUint8(offset + 6), dataView.getUint8(offset + 7)
-          )
-          if (exifHeader === 'Exif') {
-            return parseExifData(buffer, offset + 10)
-          }
-        }
-        if ((marker & 0xFF00) !== 0xFF00) break
-        const segLen = dataView.getUint16(offset + 2)
-        offset += 2 + segLen
+    const response = await fetch(url, {
+      headers: { Range: `bytes=${start}-${endInclusive}` },
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+    if (response.status !== 206 && response.status !== 200) return null
+
+    const maxLen = endInclusive - start + 1
+    if (response.status === 200) {
+      const contentLength = response.headers.get('content-length')
+      if (contentLength && parseInt(contentLength, 10) > maxLen * 2) {
+        console.warn('EXIF: server ignored Range, file too large')
+        return null
       }
-      return null
     }
-    
-    // HEIC/HEIF 格式 (ftyp box)
-    // 检查是否是 ISOBMFF 格式
-    const ftypStr = String.fromCharCode(data[4], data[5], data[6], data[7])
-    if (ftypStr === 'ftyp') {
-      console.log('Detected HEIC/HEIF format')
-      return parseHeicExif(data)
+
+    const buffer = await response.arrayBuffer()
+    if (buffer.byteLength > maxLen && response.status === 206) {
+      return buffer.slice(0, maxLen)
     }
-    
-    // TIFF/RAW 格式 (II = Intel little-endian, MM = Motorola big-endian)
-    if (firstBytes === 0x4949 || firstBytes === 0x4D4D) {
-      console.log('Detected TIFF/RAW format')
-      return parseExifData(buffer, 0)
-    }
-    
-    // CR2 格式检查（前两字节可能不同）
-    // CR2 文件以 II 或 MM 开头，然后是 0x002A (TIFF magic)
-    const magic = dataView.getUint16(2, firstBytes === 0x4949)
-    if (magic === 0x002A || magic === 0x2A00) {
-      console.log('Detected CR2/TIFF format')
-      return parseExifData(buffer, 0)
-    }
-    
-    return null
-  } catch (e) {
-    console.error('EXIF read error:', e)
+    return buffer
+  } catch {
+    clearTimeout(timeout)
     return null
   }
 }
 
-// 解析 HEIC/HEIF 格式的 EXIF
-const parseHeicExif = (data: Uint8Array): ExifData | null => {
-  try {
-    const buffer = data.buffer as ArrayBuffer
-    
-    // 在 HEIC 中查找 Exif 数据
-    // HEIC 使用 ISOBMFF 格式，EXIF 存储在 meta box 的 Exif box 中
-    // 简化方法：搜索 "Exif\0\0" 标记后跟 TIFF 头
-    
-    for (let i = 0; i < data.length - 10; i++) {
-      // 查找 "Exif\0\0" 后跟 II 或 MM
-      if (data[i] === 0x45 && data[i+1] === 0x78 && data[i+2] === 0x69 && data[i+3] === 0x66 &&
-          data[i+4] === 0x00 && data[i+5] === 0x00) {
-        // 检查 TIFF 头
-        if ((data[i+6] === 0x49 && data[i+7] === 0x49) || (data[i+6] === 0x4D && data[i+7] === 0x4D)) {
-          console.log('Found EXIF in HEIC at offset:', i + 6)
-          return parseExifData(buffer, i + 6)
+const parseExifAt = (view: Uint8Array, relativeOffset: number): ExifData | null => {
+  const abs = view.byteOffset + relativeOffset
+  if (abs + 8 > view.buffer.byteLength) return null
+  return parseExifData(view.buffer as ArrayBuffer, abs)
+}
+
+const parseExifFromBytes = (buffer: ArrayBuffer): ExifData | null => {
+  const dataView = new DataView(buffer)
+  const data = new Uint8Array(buffer)
+  const firstBytes = dataView.getUint16(0)
+
+  if (firstBytes === 0xFFD8) {
+    let offset = 2
+    while (offset < buffer.byteLength - 4) {
+      const marker = dataView.getUint16(offset)
+      if (marker === 0xFFE1) {
+        const exifHeader = String.fromCharCode(
+          dataView.getUint8(offset + 4), dataView.getUint8(offset + 5),
+          dataView.getUint8(offset + 6), dataView.getUint8(offset + 7)
+        )
+        if (exifHeader === 'Exif') {
+          const parsed = parseExifData(buffer, offset + 10)
+          if (exifPayloadLooksValid(parsed)) return parsed
         }
       }
+      if ((marker & 0xFF00) !== 0xFF00) break
+      const segLen = dataView.getUint16(offset + 2)
+      offset += 2 + segLen
     }
-    
-    // 另一种方法：直接搜索 TIFF 头 (II*\0 或 MM\0*)
-    for (let i = 0; i < data.length - 8; i++) {
-      // II (Intel) + 0x002A
-      if (data[i] === 0x49 && data[i+1] === 0x49 && data[i+2] === 0x2A && data[i+3] === 0x00) {
-        // 检查后面的偏移是否合理 (通常是 8)
-        const offset = data[i+4] | (data[i+5] << 8) | (data[i+6] << 16) | (data[i+7] << 24)
-        if (offset === 8 && i > 100) { // 跳过文件头，避免误判
-          console.log('Found TIFF header (II) in HEIC at offset:', i)
-          return parseExifData(buffer, i)
-        }
-      }
-      // MM (Motorola) + 0x002A
-      if (data[i] === 0x4D && data[i+1] === 0x4D && data[i+2] === 0x00 && data[i+3] === 0x2A) {
-        const offset = (data[i+4] << 24) | (data[i+5] << 16) | (data[i+6] << 8) | data[i+7]
-        if (offset === 8 && i > 100) {
-          console.log('Found TIFF header (MM) in HEIC at offset:', i)
-          return parseExifData(buffer, i)
-        }
-      }
-    }
-    
-    console.log('No EXIF found in HEIC file')
     return null
+  }
+
+  const ftypStr = data.length >= 8
+    ? String.fromCharCode(data[4], data[5], data[6], data[7])
+    : ''
+  if (ftypStr === 'ftyp') {
+    return parseIsobmffExif(data)
+  }
+
+  if (firstBytes === 0x4949 || firstBytes === 0x4D4D) {
+    const parsed = parseExifData(buffer, 0)
+    if (exifPayloadLooksValid(parsed)) return parsed
+  }
+
+  const magic = dataView.getUint16(2, firstBytes === 0x4949)
+  if (magic === 0x002A || magic === 0x2A00) {
+    const parsed = parseExifData(buffer, 0)
+    if (exifPayloadLooksValid(parsed)) return parsed
+  }
+
+  return null
+}
+
+const walkIsobmffForExif = (data: Uint8Array, start: number, end: number): ExifData | null => {
+  let offset = start
+  while (offset + 8 <= end) {
+    let size = readU32BE(data, offset)
+    const type = String.fromCharCode(data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7])
+    let headerSize = 8
+
+    if (size === 0) break
+    if (size === 1 && offset + 16 <= end) {
+      const hi = readU32BE(data, offset + 8)
+      const lo = readU32BE(data, offset + 12)
+      size = hi * 0x100000000 + lo
+      headerSize = 16
+    }
+    if (size < headerSize) break
+
+    const boxEnd = Math.min(offset + size, end)
+    const payloadStart = offset + headerSize
+
+    if (type === 'Exif' && payloadStart + 6 <= boxEnd) {
+      let tiffRel = payloadStart
+      if (data[payloadStart] === 0x45 && data[payloadStart + 1] === 0x78) {
+        tiffRel = payloadStart + 6
+      }
+      const parsed = parseExifAt(data, tiffRel)
+      if (exifPayloadLooksValid(parsed)) return parsed
+    }
+
+    if (type === 'meta' && payloadStart + 4 <= boxEnd) {
+      const nested = walkIsobmffForExif(data, payloadStart + 4, boxEnd)
+      if (nested) return nested
+    }
+
+    if (size > end - offset) {
+      if (type === 'meta' && payloadStart + 4 < end) {
+        const nested = walkIsobmffForExif(data, payloadStart + 4, end)
+        if (nested) return nested
+      }
+      break
+    }
+    offset += size
+  }
+  return null
+}
+
+const parseIsobmffExif = (data: Uint8Array): ExifData | null => {
+  try {
+    const fromBoxes = walkIsobmffForExif(data, 0, data.length)
+    if (fromBoxes) return fromBoxes
+    return scanIsobmffExifMarkers(data)
   } catch (e) {
-    console.error('HEIC EXIF parse error:', e)
+    console.error('ISOBMFF EXIF parse error:', e)
+    return null
+  }
+}
+
+const scanIsobmffExifMarkers = (data: Uint8Array): ExifData | null => {
+  const buffer = data.buffer as ArrayBuffer
+  for (let i = 0; i < data.length - 10; i++) {
+    if (data[i] === 0x45 && data[i + 1] === 0x78 && data[i + 2] === 0x69 && data[i + 3] === 0x66 &&
+        data[i + 4] === 0x00 && data[i + 5] === 0x00) {
+      if ((data[i + 6] === 0x49 && data[i + 7] === 0x49) || (data[i + 6] === 0x4D && data[i + 7] === 0x4D)) {
+        const parsed = parseExifData(buffer, data.byteOffset + i + 6)
+        if (exifPayloadLooksValid(parsed)) return parsed
+      }
+    }
+  }
+  for (let i = 0; i < data.length - 8; i++) {
+    if (data[i] === 0x49 && data[i + 1] === 0x49 && data[i + 2] === 0x2A && data[i + 3] === 0x00) {
+      const ifdOff = data[i + 4] | (data[i + 5] << 8) | (data[i + 6] << 16) | (data[i + 7] << 24)
+      if (ifdOff === 8 && i > 100) {
+        const parsed = parseExifData(buffer, data.byteOffset + i)
+        if (exifPayloadLooksValid(parsed)) return parsed
+      }
+    }
+    if (data[i] === 0x4D && data[i + 1] === 0x4D && data[i + 2] === 0x00 && data[i + 3] === 0x2A) {
+      const ifdOff = (data[i + 4] << 24) | (data[i + 5] << 16) | (data[i + 6] << 8) | data[i + 7]
+      if (ifdOff === 8 && i > 100) {
+        const parsed = parseExifData(buffer, data.byteOffset + i)
+        if (exifPayloadLooksValid(parsed)) return parsed
+      }
+    }
+  }
+  return null
+}
+
+const readExifFromBuffer = async (url: string, fileSize?: number): Promise<ExifData | null> => {
+  try {
+    const head = await fetchExifByteRange(url, 0, EXIF_HEAD_BYTES - 1)
+    if (!head) return null
+
+    let result = parseExifFromBytes(head)
+    if (result) return result
+
+    const headView = new Uint8Array(head)
+    const isIsobmff = headView.length >= 8 &&
+      String.fromCharCode(headView[4], headView[5], headView[6], headView[7]) === 'ftyp'
+
+    if (!isIsobmff || !fileSize || fileSize <= EXIF_HEAD_BYTES) return null
+
+    const tailStart = Math.max(EXIF_HEAD_BYTES, fileSize - EXIF_TAIL_BYTES)
+    const tail = await fetchExifByteRange(url, tailStart, fileSize - 1)
+    if (!tail) return null
+    result = parseExifFromBytes(tail)
+    return result
+  } catch (e) {
+    console.error('EXIF read error:', e)
     return null
   }
 }
@@ -599,6 +697,7 @@ export default function DownloadPreview({ file, url }: DownloadPreviewProps) {
   const [permissions, setPermissions] = useState<{ allow_direct_link: boolean; allow_share: boolean } | null>(null)
   const [metadata, setMetadata] = useState<FileMetadata | null>(null)
   const [loadingMeta, setLoadingMeta] = useState(false)
+  const [loadingExifModal, setLoadingExifModal] = useState(false)
   const [showExifModal, setShowExifModal] = useState(false)
   const [showVideoInfoModal, setShowVideoInfoModal] = useState(false)
   const [locationName, setLocationName] = useState<string | null>(null)
@@ -716,6 +815,32 @@ export default function DownloadPreview({ file, url }: DownloadPreviewProps) {
     loadVideoMeta()
   }, [showVideoInfoModal, fileType, url, file.name, videoMeta])
 
+  // 打开 EXIF 弹窗时用 Range 重新读取（AVIF/HEIC 等可能需尾部 meta）
+  useEffect(() => {
+    if (!showExifModal || fileType !== FileType.IMAGE || !url) return
+
+    let cancelled = false
+    const loadExif = async () => {
+      setLoadingExifModal(true)
+      try {
+        const exifData = await readExifFromBuffer(url, file.size)
+        if (!cancelled && exifData) {
+          setMetadata(prev => ({
+            ...(prev ?? { isRAW, isHDR: isHDRFormat(file.name) }),
+            exif: exifData,
+          }))
+        }
+      } catch (e) {
+        console.error('Failed to load EXIF in modal:', e)
+      } finally {
+        if (!cancelled) setLoadingExifModal(false)
+      }
+    }
+
+    loadExif()
+    return () => { cancelled = true }
+  }, [showExifModal, fileType, url, file.size, file.name, isRAW])
+
   // 加载音频元数据
   useEffect(() => {
     if (!showAudioInfoModal || fileType !== FileType.AUDIO || audioMeta) return
@@ -768,11 +893,8 @@ export default function DownloadPreview({ file, url }: DownloadPreviewProps) {
           
           // 1. 先读取 EXIF（不需要解码图片）
           try {
-            const exifData = await readExifFromBuffer(url)
-            if (exifData) {
-              meta.exif = exifData
-              console.log('EXIF loaded:', exifData)
-            }
+            const exifData = await readExifFromBuffer(url, file.size)
+            if (exifData) meta.exif = exifData
           } catch (e) {
             console.warn('EXIF read failed:', e)
           }
@@ -1155,9 +1277,18 @@ export default function DownloadPreview({ file, url }: DownloadPreviewProps) {
     )
   }
 
-  const hasExif = metadata?.exif && (metadata.exif.make || metadata.exif.model || metadata.exif.focalLength || metadata.exif.gpsLatitude)
-  // 图片类型都应该显示 EXIF 按钮（包括 RAW）
   const isImageType = fileType === FileType.IMAGE || isRAW
+
+  const exifModalHasSections = !!(
+    (metadata?.width && metadata?.height) ||
+    metadata?.exif?.dateTimeOriginal ||
+    (metadata?.exif && (metadata.exif.make || metadata.exif.model || metadata.exif.lensModel)) ||
+    (metadata?.exif && (
+      metadata.exif.focalLength !== undefined || metadata.exif.fNumber !== undefined ||
+      metadata.exif.exposureTime !== undefined || metadata.exif.iso !== undefined
+    )) ||
+    (metadata?.exif?.gpsLatitude !== undefined && metadata.exif.gpsLongitude !== undefined)
+  )
 
   return (
     <div className="download-preview">
@@ -1172,8 +1303,8 @@ export default function DownloadPreview({ file, url }: DownloadPreviewProps) {
           <button 
             className="download-preview__exif-btn"
             onClick={() => setShowExifModal(true)}
-            disabled={loadingMeta}
-            style={{ opacity: loadingMeta ? 0.5 : (hasExif ? 1 : 0.3) }}
+            disabled={loadingMeta && !showExifModal}
+            style={{ opacity: loadingMeta && !showExifModal ? 0.5 : 1 }}
             title={t('preview.viewExif')}
           >
             <Info size={18} />
@@ -1250,7 +1381,14 @@ export default function DownloadPreview({ file, url }: DownloadPreviewProps) {
             </div>
 
             <div className="exif-modal-apple__body">
+              {loadingExifModal && (
+                <div className="exif-modal-apple__loading">{t('preview.parsingExif')}</div>
+              )}
+              {!loadingExifModal && !exifModalHasSections && (
+                <div className="exif-modal-apple__empty">{t('preview.noExif')}</div>
+              )}
               {/* 基本信息卡片 */}
+              {(metadata?.width && metadata?.height) || metadata?.exif?.dateTimeOriginal ? (
               <div className="exif-modal-apple__card">
                 <div className="exif-modal-apple__grid">
                   {metadata?.width && metadata?.height && (
@@ -1277,6 +1415,7 @@ export default function DownloadPreview({ file, url }: DownloadPreviewProps) {
                   )}
                 </div>
               </div>
+              ) : null}
 
               {/* 设备信息卡片 */}
               {metadata?.exif && (metadata.exif.make || metadata.exif.model || metadata.exif.lensModel) && (

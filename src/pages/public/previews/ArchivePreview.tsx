@@ -140,42 +140,52 @@ export default function ArchivePreview({ file }: ArchivePreviewProps) {
   
   return (
     <div className="archive-preview">
-      <div className="archive-preview__header">
-        <div className="archive-preview__info">
-          <span className="archive-preview__format">{format}</span>
+      <div className="archive-preview__top">
+        <div className="archive-preview__title-row">
+          <FileArchive size={18} className="archive-preview__title-icon" aria-hidden />
+          <span className="archive-preview__title" title={file.name}>
+            {file.name}
+          </span>
+          {format ? <span className="archive-preview__format">{format}</span> : null}
         </div>
-      </div>
-      
-      {/* 面包屑导航 */}
-      <div className="archive-preview__breadcrumb">
-        <span 
-          className="archive-preview__breadcrumb-item archive-preview__breadcrumb-home"
-          onClick={handleGoToRoot}
-        >
-          <Home size={14} />
-        </span>
-        {breadcrumbs.map((name, index) => {
-          const isLast = index === breadcrumbs.length - 1
-          return (
-            <span key={index} className="archive-preview__breadcrumb-item">
-              <ChevronRight size={14} className="archive-preview__breadcrumb-sep" />
-              <span 
-                className={isLast ? 'archive-preview__breadcrumb-current' : ''}
-                onClick={() => {
-                  if (!isLast) {
-                    const targetPath = breadcrumbs.slice(0, index + 1).join('/')
-                    setPathHistory([...pathHistory, currentPath])
-                    loadDirectory(targetPath)
-                  }
-                }}
-              >
-                {name}
+
+        <nav className="archive-preview__breadcrumb" aria-label={t('fileBrowser.path')}>
+          <button
+            type="button"
+            className="archive-preview__breadcrumb-home"
+            onClick={handleGoToRoot}
+            title={t('fileBrowser.home')}
+          >
+            <Home size={14} />
+          </button>
+          {breadcrumbs.map((name, index) => {
+            const isLast = index === breadcrumbs.length - 1
+            return (
+              <span key={index} className="archive-preview__breadcrumb-segment">
+                <ChevronRight size={14} className="archive-preview__breadcrumb-sep" aria-hidden />
+                {isLast ? (
+                  <span className="archive-preview__breadcrumb-current">{name}</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="archive-preview__breadcrumb-link"
+                    onClick={() => {
+                      const targetPath = breadcrumbs.slice(0, index + 1).join('/')
+                      setPathHistory([...pathHistory, currentPath])
+                      loadDirectory(targetPath)
+                    }}
+                  >
+                    {name}
+                  </button>
+                )}
               </span>
-            </span>
-          )
-        })}
+            )
+          })}
+        </nav>
       </div>
-      
+
+      <div className="archive-preview__list-head">{t('fileBrowser.name')}</div>
+
       <div className="archive-preview__list">
         {loading && (
           <div className="archive-preview__loading-overlay">

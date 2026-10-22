@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef, useContext, ReactNode } from 'react'
+import { useState, useContext, useRef, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import Vara from 'vara'
 import { 
   ChevronRight, Home, Sun, Moon, Languages, Lock
 } from 'lucide-react'
 import { SharedContext } from '../../pages/public/FileRouter'
 import { Tooltip } from '../Tooltip/Tooltip'
+import FixedAnchoredMenu from '../FixedAnchoredMenu'
 import TaskSidebar from '../TaskSidebar'
 import UserSettingsSidebar from '../UserSettingsSidebar'
 import { MetaContentRenderer } from './utils'
@@ -69,51 +69,11 @@ export default function FilePageLayout({
 }: FilePageLayoutProps) {
   const { t } = useTranslation()
   const shared = useContext(SharedContext)
-  const { siteTitle, siteIcon, darkMode, language, hasBackground, isLoggedIn } = shared
+  const { siteTitle, siteIcon, darkMode, language, hasBackground, isLoggedIn, username } = shared
   
   const [showLangMenu, setShowLangMenu] = useState(false)
+  const langAnchorRef = useRef<HTMLDivElement>(null)
   const [userSettingsDialog, setUserSettingsDialog] = useState(false)
-  
-  // Vara.js 手写动画
-  const varaInitialized = useRef(false)
-  const varaContainerId = 'vara-container-layout'
-  
-  useEffect(() => {
-    if (varaInitialized.current) return
-    const container = document.getElementById(varaContainerId)
-    
-    if (container && container.children.length === 0) {
-      varaInitialized.current = true
-      let isMounted = true
-      
-      const playAnimation = () => {
-        const currentContainer = document.getElementById(varaContainerId)
-        if (!isMounted || !currentContainer) return
-        
-        currentContainer.innerHTML = ''
-        try {
-          const vara = new Vara(
-            `#${varaContainerId}`,
-            'https://cdn.jsdelivr.net/npm/vara@1.4.0/fonts/Satisfy/SatisfySL.json',
-            [{ text: 'YaoList', fontSize: 20, strokeWidth: 1.5, duration: 2000 }],
-            { strokeWidth: 1.5, color: '#667eea' }
-          )
-          vara.animationEnd(() => {
-            if (isMounted) {
-              setTimeout(playAnimation, 1500)
-            }
-          })
-        } catch (e) {
-          // 忽略 Vara 初始化错误
-        }
-      }
-      playAnimation()
-      
-      return () => {
-        isMounted = false
-      }
-    }
-  }, [])
 
   // 语言切换
   const toggleLanguage = (lang: string) => {
@@ -148,7 +108,7 @@ export default function FilePageLayout({
           {headerButtons}
           
           {/* 语言切换 */}
-          <div className="file-browser__lang-switch">
+          <div className="file-browser__lang-switch" ref={langAnchorRef}>
             <Tooltip text={t('fileBrowser.switchLanguage')} position="bottom">
               <button 
                 className="file-browser__header-btn"
@@ -157,29 +117,32 @@ export default function FilePageLayout({
                 <Languages size={18} />
               </button>
             </Tooltip>
-            {showLangMenu && (
-              <div className="file-browser__lang-menu">
-                <button 
-                  className={`file-browser__lang-item ${language === 'zh-CN' ? 'active' : ''}`}
-                  onClick={() => toggleLanguage('zh-CN')}
-                >
-                  简体中文
-                </button>
-                <button 
-                  className={`file-browser__lang-item ${language === 'en-US' ? 'active' : ''}`}
-                  onClick={() => toggleLanguage('en-US')}
-                >
-                  English
-                </button>
-              </div>
-            )}
+            <FixedAnchoredMenu
+              open={showLangMenu}
+              anchorRef={langAnchorRef}
+              className="file-browser__lang-menu"
+              align="end"
+            >
+              <button 
+                className={`file-browser__lang-item ${language === 'zh-CN' ? 'active' : ''}`}
+                onClick={() => toggleLanguage('zh-CN')}
+              >
+                简体中文
+              </button>
+              <button 
+                className={`file-browser__lang-item ${language === 'en-US' ? 'active' : ''}`}
+                onClick={() => toggleLanguage('en-US')}
+              >
+                English
+              </button>
+            </FixedAnchoredMenu>
           </div>
           
           {/* 暗色模式切换 */}
           <Tooltip text={darkMode ? t('fileBrowser.switchToLight') : t('fileBrowser.switchToDark')} position="bottom">
             <button 
               className="file-browser__header-btn"
-              onClick={() => shared.setDarkMode(!darkMode)}
+              onClick={(e) => shared.setDarkMode(!darkMode, { x: e.clientX, y: e.clientY })}
             >
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
@@ -257,15 +220,12 @@ export default function FilePageLayout({
 
       {/* 页面底部 */}
       <div className="file-browser__page-footer">
-        <a 
-          href="https://github.com/ChuYao233/YaoList" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="file-browser__page-footer-link"
-        >
-          <span id={varaContainerId} className="file-browser__vara-container"></span>
-        </a>
-        <span className="file-browser__page-footer-sep">|</span>
+        {isLoggedIn && username && (
+          <>
+            <span className="file-browser__page-footer-user">{username}</span>
+            <span className="file-browser__page-footer-sep">|</span>
+          </>
+        )}
         {isLoggedIn ? (
           <a 
             href="#" 

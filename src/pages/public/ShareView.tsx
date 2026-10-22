@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import Vara from 'vara'
 import JSZip from 'jszip'
 import { 
   Share2, Lock, Folder, File, Download, FileText, FileImage, 
@@ -12,6 +11,8 @@ import {
 } from 'lucide-react'
 import { api } from '../../utils/api'
 import { useToast } from '../../components/Toast'
+import FixedAnchoredMenu from '../../components/FixedAnchoredMenu'
+import { applyThemeTransition } from '../../utils/themeTransition'
 import '../../styles/pages/share-view.scss'
 
 interface ShareInfo {
@@ -236,6 +237,7 @@ export default function ShareView() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
   const [showLangMenu, setShowLangMenu] = useState(false)
+  const langAnchorRef = useRef<HTMLDivElement>(null)
   
   // 加载站点设置（使用公开API）
   useEffect(() => {
@@ -260,7 +262,9 @@ export default function ShareView() {
     localStorage.setItem('theme', isDark ? 'dark' : 'light')
   }, [isDark])
   
-  const toggleTheme = () => setIsDark(!isDark)
+  const toggleTheme = (origin?: { x: number; y: number }) => {
+    applyThemeTransition(() => setIsDark((d) => !d), origin)
+  }
   
   const changeLanguage = (lang: string) => {
     i18n.changeLanguage(lang)
@@ -523,64 +527,30 @@ export default function ShareView() {
   
   const totalPages = Math.ceil(total / pageSize)
 
-  // Vara.js 手写动画
-  const varaInitialized = useRef(false)
-  const varaMounted = useRef(true)
-  
+  const [footerUsername, setFooterUsername] = useState<string | null>(null)
+  const [footerLoggedIn, setFooterLoggedIn] = useState(false)
+
   useEffect(() => {
-    varaMounted.current = true
-    
-    // 延迟初始化，确保DOM已渲染
-    const initTimer = setTimeout(() => {
-      if (varaInitialized.current) return
-      const container = document.getElementById('share-vara-container')
-      
-      if (container) {
-        varaInitialized.current = true
-        
-        const playAnimation = () => {
-          const currentContainer = document.getElementById('share-vara-container')
-          if (!varaMounted.current || !currentContainer) return
-          
-          currentContainer.innerHTML = ''
-          try {
-            const vara = new Vara(
-              '#share-vara-container',
-              'https://cdn.jsdelivr.net/npm/vara@1.4.0/fonts/Satisfy/SatisfySL.json',
-              [{ text: 'YaoList', fontSize: 20, strokeWidth: 1.5, duration: 2000 }],
-              { strokeWidth: 1.5, color: '#667eea' }
-            )
-            vara.animationEnd(() => {
-              if (varaMounted.current) {
-                setTimeout(playAnimation, 1500)
-              }
-            })
-          } catch (e) {
-            // 忽略 Vara 初始化错误
-          }
-        }
-        playAnimation()
-      }
-    }, 100)
-    
-    return () => {
-      varaMounted.current = false
-      clearTimeout(initTimer)
+    const loadAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/permissions', { credentials: 'include' })
+        if (!res.ok) return
+        const data = await res.json()
+        setFooterLoggedIn(!data.is_guest)
+        setFooterUsername(data.user?.username ?? null)
+      } catch {}
     }
+    loadAuth()
   }, [])
 
-  // 底部JSX
   const footerElement = (
     <div className="share-view__footer">
-      <a 
-        href="https://github.com/ChuYao233/YaoList" 
-        target="_blank" 
-        rel="noopener noreferrer"
-        className="share-view__footer-link"
-      >
-        <span id="share-vara-container" className="share-view__vara-container"></span>
-      </a>
-      <span className="share-view__footer-sep">|</span>
+      {footerLoggedIn && footerUsername && (
+        <>
+          <span className="share-view__footer-user">{footerUsername}</span>
+          <span className="share-view__footer-sep">|</span>
+        </>
+      )}
       <Link to="/" className="share-view__footer-link">
         {t('share.goHome', '前往主页')}
       </Link>
@@ -595,7 +565,7 @@ export default function ShareView() {
         <span className="share-view__site-title">{siteTitle}</span>
       </div>
       <div className="share-view__toolbar-actions">
-        <div className="share-view__lang-switch">
+        <div className="share-view__lang-switch" ref={langAnchorRef}>
           <button 
             className="share-view__toolbar-btn" 
             onClick={() => setShowLangMenu(!showLangMenu)} 
@@ -603,26 +573,29 @@ export default function ShareView() {
           >
             <Languages size={18} />
           </button>
-          {showLangMenu && (
-            <div className="share-view__lang-menu">
-              <button 
-                className={`share-view__lang-item ${i18n.language === 'zh-CN' ? 'active' : ''}`}
-                onClick={() => changeLanguage('zh-CN')}
-              >
-                简体中文
-              </button>
-              <button 
-                className={`share-view__lang-item ${i18n.language.startsWith('en') ? 'active' : ''}`}
-                onClick={() => changeLanguage('en-US')}
-              >
-                English
-              </button>
-            </div>
-          )}
+          <FixedAnchoredMenu
+            open={showLangMenu}
+            anchorRef={langAnchorRef}
+            className="share-view__lang-menu"
+            align="end"
+          >
+            <button 
+              className={`share-view__lang-item ${i18n.language === 'zh-CN' ? 'active' : ''}`}
+              onClick={() => changeLanguage('zh-CN')}
+            >
+              简体中文
+            </button>
+            <button 
+              className={`share-view__lang-item ${i18n.language.startsWith('en') ? 'active' : ''}`}
+              onClick={() => changeLanguage('en-US')}
+            >
+              English
+            </button>
+          </FixedAnchoredMenu>
         </div>
         <button 
           className="share-view__toolbar-btn" 
-          onClick={toggleTheme} 
+          onClick={(e) => toggleTheme({ x: e.clientX, y: e.clientY })} 
           title={isDark ? t('fileBrowser.switchToLight', '切换到浅色模式') : t('fileBrowser.switchToDark', '切换到暗色模式')}
         >
           {isDark ? <Sun size={18} /> : <Moon size={18} />}

@@ -1,5 +1,5 @@
-@import '../variables';
-@import '../mixins';
+@use 'sass:color';
+@use '../mixins' as *;
 
 .load-balance {
   &__container {
@@ -123,7 +123,7 @@
       left: 0;
       right: 0;
       height: 3px;
-      background: linear-gradient(90deg, $accent-color, lighten($accent-color, 15%));
+      background: linear-gradient(90deg, $accent-color, color.adjust($accent-color, $lightness: 15%));
       opacity: 0;
       transition: opacity 0.25s ease;
     }

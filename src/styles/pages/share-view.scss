@@ -1,5 +1,5 @@
-@import '../variables';
-@import '../mixins';
+@use 'sass:color';
+@use '../mixins' as *;
 
 .share-view {
   min-height: 100vh;
@@ -148,8 +148,8 @@
     .share-view__password-card,
     .share-view__container {
       background: rgba(255, 255, 255, 0.75);
-      backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
+      backdrop-filter: blur(20px);
       border: 1px solid rgba(255, 255, 255, 0.3);
     }
     
@@ -163,14 +163,14 @@
     
     .share-view__pagination {
       background: rgba(255, 255, 255, 0.5);
-      backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
     }
     
     .share-view__error {
       background: rgba(255, 255, 255, 0.75);
-      backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
+      backdrop-filter: blur(20px);
       padding: 40px;
       border-radius: 16px;
       border: 1px solid rgba(255, 255, 255, 0.3);
@@ -178,8 +178,8 @@
     
     .share-view__loading {
       background: rgba(255, 255, 255, 0.75);
-      backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
+      backdrop-filter: blur(20px);
       padding: 40px 60px;
       border-radius: 16px;
       border: 1px solid rgba(255, 255, 255, 0.3);
@@ -191,7 +191,8 @@
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
     }
     
-    .share-view__footer-link {
+    .share-view__footer-link,
+    .share-view__footer-user {
       color: #fff;
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
     }
@@ -199,11 +200,6 @@
     .share-view__footer-sep {
       color: rgba(255, 255, 255, 0.7);
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-    }
-    
-    .share-view__vara-container svg path {
-      stroke: #fff !important;
-      filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 2px #667eea);
     }
   }
 
@@ -232,37 +228,9 @@
     text-decoration: none;
   }
 
-  &__vara-container {
-    display: inline-block;
-    vertical-align: middle;
-    overflow: visible;
-    width: 75px;
-    height: 20px;
-    position: relative;
-    
-    svg {
-      position: absolute;
-      left: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      overflow: visible;
-      width: 75px !important;
-      height: 20px !important;
-    }
-    
-    svg path {
-      filter: drop-shadow(0 0 1px #667eea);
-      animation: glowPulse 2s ease-in-out infinite;
-    }
-  }
-
-  @keyframes glowPulse {
-    0%, 100% {
-      filter: drop-shadow(0 0 1px #667eea);
-    }
-    50% {
-      filter: drop-shadow(0 0 2px #764ba2);
-    }
+  &__footer-user {
+    color: var(--text-primary);
+    font-weight: 700;
   }
 
   &__footer-sep {
@@ -1015,7 +983,7 @@
     transition: all 0.2s ease;
 
     &:hover:not(:disabled) {
-      background: darken($accent-color, 5%);
+      background: color.adjust($accent-color, $lightness: -5%);
       transform: translateY(-1px);
     }
 

@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Edit, Trash2, X, Search, Link2, Copy, Check, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Folder, File } from 'lucide-react'
+import { Plus, Edit, Trash2, X, Link2, Copy, Check, Folder, File } from 'lucide-react'
 import { api } from '../../utils/api'
 import { useToast } from '../../components/Toast'
-import { Select } from '../../components/Select'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { PageLayout } from '../../components/PageLayout/PageLayout'
+import { DataTable, type Column } from '../../components/DataTable/DataTable'
+import { SearchInput } from '../../components/SearchInput/SearchInput'
+import { Button } from '../../components/Button/Button'
+import { TableActions, TableCell, TableLinkButton } from '../../components/manage/tableCells'
 import '../../styles/pages/links.scss'
 
 interface DirectLink {
@@ -228,206 +232,152 @@ export default function Links() {
     return link.access_count >= link.max_access_count
   }
 
-  const getPageNumbers = () => {
-    const pages: number[] = []
-    const maxVisible = 5
-    let start = Math.max(1, page - Math.floor(maxVisible / 2))
-    let end = Math.min(totalPages, start + maxVisible - 1)
-    if (end - start + 1 < maxVisible) {
-      start = Math.max(1, end - maxVisible + 1)
-    }
-    for (let i = start; i <= end; i++) {
-      pages.push(i)
-    }
-    return pages
-  }
+  const handleSearch = useCallback((value: string) => {
+    setSearch(value)
+    setPage(1)
+  }, [])
 
-  if (loading && links.length === 0) {
-    return (
-      <div className="links__container">
-        <div className="links__loading">加载中...</div>
-      </div>
-    )
-  }
+  const columns: Column<DirectLink>[] = useMemo(
+    () => [
+      {
+        key: 'creator',
+        title: t('links.creator', '创建者'),
+        render: (link) => (
+          <TableCell>{link.creator_name || t('links.guest', '游客')}</TableCell>
+        ),
+      },
+      {
+        key: 'filename',
+        title: t('links.filename', '文件名'),
+        render: (link) => (
+          <TableCell large>
+            <span className="links__filename">
+              <Link2 size={14} />
+              <span title={link.filename}>{link.filename}</span>
+            </span>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'path',
+        title: t('links.path', '路径'),
+        render: (link) => (
+          <TableCell>
+            <span className="links__path" title={link.path}>
+              {link.path}
+            </span>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'created_at',
+        title: t('links.createdAt', '创建时间'),
+        render: (link) => <TableCell>{formatDate(link.created_at)}</TableCell>,
+      },
+      {
+        key: 'expires_at',
+        title: t('links.expiresAt', '到期时间'),
+        render: (link) => (
+          <TableCell>
+            {link.expires_at ? formatDate(link.expires_at) : t('links.never', '永久')}
+          </TableCell>
+        ),
+      },
+      {
+        key: 'access_count',
+        title: t('links.count', '次数'),
+        render: (link) => (
+          <TableCell>
+            {link.access_count}/{link.max_access_count ?? '∞'}
+          </TableCell>
+        ),
+      },
+      {
+        key: 'status',
+        title: t('links.status', '状态'),
+        render: (link) => (
+          <span
+            className={`links__badge links__badge--clickable data-table-tag ${
+              !link.enabled
+                ? 'links__badge--disabled'
+                : isExpired(link)
+                  ? 'links__badge--expired'
+                  : isExhausted(link)
+                    ? 'links__badge--exhausted'
+                    : 'links__badge--active'
+            }`}
+            onClick={() => handleToggle(link.id)}
+            title={t('links.clickToToggle', '点击切换')}
+          >
+            {!link.enabled
+              ? t('links.disabled', '禁用')
+              : isExpired(link)
+                ? t('links.expired', '过期')
+                : isExhausted(link)
+                  ? t('links.exhausted', '耗尽')
+                  : t('links.active', '正常')}
+          </span>
+        ),
+      },
+      {
+        key: 'actions',
+        title: t('common.actions', '操作'),
+        render: (link) => (
+          <TableActions>
+            <TableLinkButton onClick={() => copyLink(link)}>
+              {copiedId === link.id ? <Check size={14} /> : <Copy size={14} />}
+              复制
+            </TableLinkButton>
+            <TableLinkButton onClick={() => handleOpenDrawer(link)}>
+              <Edit size={14} />
+              编辑
+            </TableLinkButton>
+            <TableLinkButton danger onClick={() => handleDelete(link.id)}>
+              <Trash2 size={14} />
+              删除
+            </TableLinkButton>
+          </TableActions>
+        ),
+      },
+    ],
+    [t, copiedId, downloadDomain],
+  )
 
   return (
-    <div className="links__container">
-      <div className="links__header">
-        <h1>{t('links.title', '直链管理')}</h1>
-        <div className="links__actions">
-          <div className="links__search">
-            <Search size={18} />
-            <input
-              type="text"
-              placeholder={t('links.searchPlaceholder', '搜索...')}
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            />
-          </div>
-          <button className="links__add-btn" onClick={() => handleOpenDrawer()}>
-            <Plus size={18} />
+    <div className="manage-page links__container">
+      <PageLayout
+        leftSlot={
+          <SearchInput
+            value={search}
+            placeholder={t('links.searchPlaceholder', '搜索...')}
+            onChange={handleSearch}
+          />
+        }
+        rightSlot={
+          <Button size="sm" onClick={() => handleOpenDrawer()}>
+            <Plus size={16} />
             {t('links.add', '新建')}
-          </button>
+          </Button>
+        }
+      >
+        <div className="manage-page__table-fill">
+          <DataTable
+            columns={columns}
+            data={links}
+            rowKey={(row) => row.id}
+            loading={loading}
+            emptyText={t('links.empty', '暂无直链')}
+            tableClassName="data-table--entity-list"
+            listLayoutId="links"
+            pagination={{ page, size: perPage, total }}
+            onPageChange={setPage}
+            onSizeChange={(size) => {
+              setPerPage(size)
+              setPage(1)
+            }}
+          />
         </div>
-      </div>
-
-      {links.length === 0 ? (
-        <div className="links__empty">
-          <Link2 size={48} strokeWidth={1.5} />
-          <p>{t('links.empty', '暂无直链')}</p>
-          <button onClick={() => handleOpenDrawer()}>
-            <Plus size={18} />
-            {t('links.add', '新建')}
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className="links__table-container">
-            <table className="links__table">
-              <thead>
-                <tr>
-                  <th className="links__col-creator">{t('links.creator', '创建者')}</th>
-                  <th className="links__col-filename">{t('links.filename', '文件名')}</th>
-                  <th className="links__col-path">{t('links.path', '路径')}</th>
-                  <th className="links__col-created">{t('links.createdAt', '创建时间')}</th>
-                  <th className="links__col-expires">{t('links.expiresAt', '到期时间')}</th>
-                  <th className="links__col-access">{t('links.count', '次数')}</th>
-                  <th className="links__col-status">{t('links.status', '状态')}</th>
-                  <th className="links__col-actions">{t('common.actions', '操作')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {links.map((link) => (
-                  <tr key={link.id}>
-                    <td>
-                      <span className="links__creator">{link.creator_name || t('links.guest', '游客')}</span>
-                    </td>
-                    <td>
-                      <div className="links__filename">
-                        <Link2 size={14} />
-                        <span title={link.filename}>{link.filename}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="links__path" title={link.path}>{link.path}</span>
-                    </td>
-                    <td>
-                      <span className="links__date">{formatDate(link.created_at)}</span>
-                    </td>
-                    <td>
-                      <span className="links__date">{link.expires_at ? formatDate(link.expires_at) : t('links.never', '永久')}</span>
-                    </td>
-                    <td>
-                      <span className="links__access-count">
-                        {link.access_count}/{link.max_access_count ?? '∞'}
-                      </span>
-                    </td>
-                    <td>
-                      <span 
-                        className={`links__badge links__badge--clickable ${
-                          !link.enabled ? 'links__badge--disabled' : 
-                          isExpired(link) ? 'links__badge--expired' : 
-                          isExhausted(link) ? 'links__badge--exhausted' : 
-                          'links__badge--active'
-                        }`}
-                        onClick={() => handleToggle(link.id)}
-                        title={t('links.clickToToggle', '点击切换')}
-                      >
-                        {!link.enabled ? t('links.disabled', '禁用') : 
-                         isExpired(link) ? t('links.expired', '过期') : 
-                         isExhausted(link) ? t('links.exhausted', '耗尽') : 
-                         t('links.active', '正常')}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="links__table-actions">
-                        <button
-                          className="links__action-btn"
-                          title="复制链接"
-                          onClick={() => copyLink(link)}
-                        >
-                          {copiedId === link.id ? <Check size={16} /> : <Copy size={16} />}
-                        </button>
-                        <button
-                          className="links__action-btn"
-                          title="编辑"
-                          onClick={() => handleOpenDrawer(link)}
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          className="links__action-btn links__action-btn--danger"
-                          title="删除"
-                          onClick={() => handleDelete(link.id)}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="links__pagination">
-            <div className="links__pagination-info">
-              <span>每页</span>
-              <Select
-                value={perPage.toString()}
-                options={[
-                  { value: '10', label: '10' },
-                  { value: '20', label: '20' },
-                  { value: '50', label: '50' }
-                ]}
-                onChange={(value) => { setPerPage(Number(value)); setPage(1); }}
-              />
-              <span>条，共 {total} 条</span>
-            </div>
-            <div className="links__pagination-controls">
-              <button 
-                className="links__page-btn"
-                disabled={page <= 1}
-                onClick={() => setPage(1)}
-              >
-                <ChevronsLeft size={16} />
-              </button>
-              <button 
-                className="links__page-btn"
-                disabled={page <= 1}
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <div className="links__page-numbers">
-                {getPageNumbers().map(pageNum => (
-                  <button
-                    key={pageNum}
-                    className={`links__page-number ${pageNum === page ? 'links__page-number--active' : ''}`}
-                    onClick={() => setPage(pageNum)}
-                  >
-                    {pageNum}
-                  </button>
-                ))}
-              </div>
-              <button 
-                className="links__page-btn"
-                disabled={page >= totalPages}
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              >
-                <ChevronRight size={16} />
-              </button>
-              <button 
-                className="links__page-btn"
-                disabled={page >= totalPages}
-                onClick={() => setPage(totalPages)}
-              >
-                <ChevronsRight size={16} />
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+      </PageLayout>
 
       {showDrawer && (
         <div className={`links__drawer-overlay ${drawerClosing ? 'links__drawer-overlay--closing' : ''}`} onClick={handleCloseDrawer}>

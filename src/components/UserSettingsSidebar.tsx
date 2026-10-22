@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Mail, Phone, Shield, Key, Lock, ChevronRight, Check, Eye, EyeOff, Loader2, Settings, LogOut } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import '../styles/components/user-settings-sidebar.scss'
+import { lockPageScroll } from '../utils/scrollLock'
 
 interface UserInfo {
   id: string
@@ -65,6 +67,8 @@ export default function UserSettingsSidebar({ visible, onClose, permissions }: U
   const [success, setSuccess] = useState('')
   const [isClosing, setIsClosing] = useState(false) // 关闭动画状态
   const [shouldRender, setShouldRender] = useState(false) // 是否应该渲染
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
   
   // 编辑表单状态
   const [newEmail, setNewEmail] = useState('')
@@ -109,6 +113,28 @@ export default function UserSettingsSidebar({ visible, onClose, permissions }: U
       loadUserInfo()
     }
   }, [visible])
+
+  // 侧栏挂载期间锁定 html 滚动 + 底层 inert（含关闭动画）；Esc 关闭
+  useEffect(() => {
+    if (!shouldRender) return
+
+    const unlock = lockPageScroll({
+      allowScrollSelector: '.user-settings-sidebar__content',
+      inertRoot: true
+    })
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCloseRef.current()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      unlock()
+    }
+  }, [shouldRender])
 
   useEffect(() => {
     if (countdown > 0) {
@@ -443,11 +469,24 @@ export default function UserSettingsSidebar({ visible, onClose, permissions }: U
 
   if (!shouldRender) return null
 
-  return (
-    <div className={`user-settings-sidebar ${isClosing ? 'user-settings-sidebar--closing' : ''}`}>
+  return createPortal(
+    <div className="user-settings-sidebar-portal">
+      <div
+        className={`user-settings-sidebar__backdrop ${isClosing ? 'user-settings-sidebar__backdrop--closing' : ''}`}
+        onClick={onClose}
+        onWheel={(e) => e.preventDefault()}
+        aria-hidden="true"
+      />
+      <div
+        className={`user-settings-sidebar ${isClosing ? 'user-settings-sidebar--closing' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="user-settings-sidebar-title"
+        onClick={(e) => e.stopPropagation()}
+      >
       <div className="user-settings-sidebar__header">
-        <h3>{t('userSettings.title')}</h3>
-        <button className="user-settings-sidebar__close" onClick={onClose}>
+        <h3 id="user-settings-sidebar-title">{t('userSettings.title')}</h3>
+        <button type="button" className="user-settings-sidebar__close" onClick={onClose} aria-label={t('common.close', '关闭')}>
           <X size={18} />
         </button>
       </div>
@@ -815,5 +854,7 @@ export default function UserSettingsSidebar({ visible, onClose, permissions }: U
         )}
       </div>
     </div>
+    </div>,
+    document.body
   )
 }

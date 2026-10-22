@@ -1,5 +1,5 @@
-@import '../variables';
-@import '../mixins';
+@use 'sass:color';
+@use '../mixins' as *;
 
 .drivers {
   &__container {
@@ -80,24 +80,24 @@
 
   &__grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+    gap: 12px;
   }
 
   &__card {
     background: var(--bg-secondary);
-    border-radius: 16px;
-    padding: 20px;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 12px;
+    padding: 14px 16px;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
     box-shadow: 
       0 0 0 1px rgba(0, 0, 0, 0.03),
       0 2px 4px rgba(0, 0, 0, 0.02),
-      0 12px 24px rgba(0, 0, 0, 0.03);
+      0 8px 16px rgba(0, 0, 0, 0.03);
     position: relative;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    min-height: 140px;
+    min-height: 0;
 
     &::before {
       content: '';
@@ -106,17 +106,17 @@
       left: 0;
       right: 0;
       height: 3px;
-      background: linear-gradient(90deg, $accent-color, lighten($accent-color, 15%));
+      background: linear-gradient(90deg, $accent-color, color.adjust($accent-color, $lightness: 15%));
       opacity: 0;
       transition: opacity 0.25s ease;
     }
 
     &:hover {
-      transform: translateY(-2px);
+      transform: translateY(-1px);
       box-shadow: 
         0 0 0 1px rgba(0, 0, 0, 0.04),
         0 4px 8px rgba(0, 0, 0, 0.04),
-        0 24px 48px rgba(0, 0, 0, 0.08);
+        0 12px 24px rgba(0, 0, 0, 0.06);
 
       &::before {
         opacity: 1;
@@ -128,8 +128,8 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 8px;
+    gap: 8px;
+    margin-bottom: 4px;
   }
 
   &__card-body {
@@ -137,14 +137,14 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    min-height: 40px;
-    margin: 12px 0;
+    min-height: 0;
+    margin: 8px 0;
   }
 
   &__card-title {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     flex: 1;
     min-width: 0;
 
@@ -157,18 +157,17 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
     }
   }
 
   &__card-type {
     display: inline-flex;
     align-items: center;
-    padding: 4px 10px;
+    padding: 2px 8px;
     background: linear-gradient(135deg, rgba($accent-color, 0.08), rgba($accent-color, 0.12));
     color: $accent-color;
-    border-radius: 8px;
-    font-size: 12px;
+    border-radius: 6px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.5px;
     flex-shrink: 0;
@@ -177,10 +176,10 @@
   &__status-badge {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
+    gap: 4px;
+    padding: 3px 8px;
     border-radius: 20px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     background: rgba(142, 142, 147, 0.12);
     color: rgb(142, 142, 147);
@@ -215,7 +214,8 @@
   }
 
   &__card-error {
-    padding: 8px 10px;
+    padding: 6px 8px;
+    margin-top: 4px;
     background: rgba(255, 59, 48, 0.08);
     border-radius: 6px;
     border-left: 3px solid rgb(255, 59, 48);
@@ -242,7 +242,7 @@
   }
 
   &__card-space {
-    padding: 10px 0 4px;
+    padding: 6px 0 2px;
   }
 
   &__space-bar {
@@ -271,24 +271,24 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    padding-top: 12px;
+    padding-top: 8px;
     margin-top: auto;
   }
 
   &__card-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
 
   &__action-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     border: none;
-    border-radius: 10px;
+    border-radius: 8px;
     background: rgba(0, 0, 0, 0.04);
     color: var(--text-secondary);
     cursor: pointer;
@@ -372,8 +372,8 @@
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
     z-index: 1000;
     display: flex;
     justify-content: flex-end;

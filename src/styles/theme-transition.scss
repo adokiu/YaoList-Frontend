@@ -1,0 +1,27 @@
+// 主题切换：圆形扩散（View Transitions API）
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 9999;
+}
+
+// 切换瞬间禁用卡片上的 transition: all，避免与全页过渡叠加抖动
+html.theme-switching {
+  .file-browser__main-card,
+  .file-browser__breadcrumb-card,
+  .file-browser__meta-card,
+  .file-preview__info-card,
+  .file-preview__content-card,
+  .file-browser,
+  body {
+    transition: none !important;
+  }
+}

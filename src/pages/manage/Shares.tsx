@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Edit, Trash2, X, Search, Share2, Copy, Check, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Folder, File, Lock, Unlock } from 'lucide-react'
+import { Plus, Edit, Trash2, X, Copy, Check, Folder, File, Lock, Unlock } from 'lucide-react'
 import { api } from '../../utils/api'
 import { useToast } from '../../components/Toast'
-import { Select } from '../../components/Select'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { PageLayout } from '../../components/PageLayout/PageLayout'
+import { DataTable, type Column } from '../../components/DataTable/DataTable'
+import { SearchInput } from '../../components/SearchInput/SearchInput'
+import { Button } from '../../components/Button/Button'
+import { TableActions, TableCell, TableLinkButton } from '../../components/manage/tableCells'
 import '../../styles/pages/shares.scss'
 
 interface Share {
@@ -53,7 +57,6 @@ export default function Shares() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(10)
   const [total, setTotal] = useState(0)
-  const [totalPages, setTotalPages] = useState(0)
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [showPathSelector, setShowPathSelector] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<{show: boolean, id: number | null}>({show: false, id: null})
@@ -70,7 +73,6 @@ export default function Shares() {
       const response = await api.get(`/api/shares?page=${page}&per_page=${perPage}${search ? `&search=${encodeURIComponent(search)}` : ''}`)
       setShares(response.data.data || [])
       setTotal(response.data.total || 0)
-      setTotalPages(Math.ceil((response.data.total || 0) / perPage))
     } catch (err) {
       toast.error(t('shares.loadFailed', '加载失败'))
     } finally {
@@ -218,212 +220,161 @@ export default function Shares() {
     return share.access_count >= share.max_access_count
   }
 
-  const getPageNumbers = () => {
-    const pages: number[] = []
-    const maxVisible = 5
-    let start = Math.max(1, page - Math.floor(maxVisible / 2))
-    let end = Math.min(totalPages, start + maxVisible - 1)
-    if (end - start + 1 < maxVisible) {
-      start = Math.max(1, end - maxVisible + 1)
-    }
-    for (let i = start; i <= end; i++) {
-      pages.push(i)
-    }
-    return pages
-  }
+  const handleSearch = useCallback((value: string) => {
+    setSearch(value)
+    setPage(1)
+  }, [])
 
-  if (loading && shares.length === 0) {
-    return (
-      <div className="shares__container">
-        <div className="shares__loading">{t('common.loading', '加载中...')}</div>
-      </div>
-    )
-  }
+  const columns: Column<Share>[] = useMemo(
+    () => [
+      {
+        key: 'creator',
+        title: t('shares.creator', '创建者'),
+        render: (share) => (
+          <TableCell>{share.creator_name || t('shares.guest', '游客')}</TableCell>
+        ),
+      },
+      {
+        key: 'name',
+        title: t('shares.name', '名称'),
+        render: (share) => (
+          <TableCell large>
+            <div className="shares__name">
+              {share.is_dir ? <Folder size={14} /> : <File size={14} />}
+              <span title={share.name}>{share.name}</span>
+            </div>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'path',
+        title: t('shares.path', '路径'),
+        render: (share) => (
+          <TableCell>
+            <span className="shares__path" title={share.path}>
+              {share.path}
+            </span>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'password',
+        title: t('shares.password', '密码'),
+        render: (share) => (
+          <span className={`shares__password ${share.has_password ? 'shares__password--set' : ''}`}>
+            {share.has_password ? <Lock size={14} /> : <Unlock size={14} />}
+          </span>
+        ),
+      },
+      {
+        key: 'created_at',
+        title: t('shares.createdAt', '创建时间'),
+        render: (share) => <TableCell>{formatDate(share.created_at)}</TableCell>,
+      },
+      {
+        key: 'expires_at',
+        title: t('shares.expiresAt', '到期时间'),
+        render: (share) => (
+          <TableCell>
+            {share.expires_at ? formatDate(share.expires_at) : t('shares.never', '永久')}
+          </TableCell>
+        ),
+      },
+      {
+        key: 'access_count',
+        title: t('shares.count', '次数'),
+        render: (share) => (
+          <TableCell>
+            {share.access_count}/{share.max_access_count ?? '∞'}
+          </TableCell>
+        ),
+      },
+      {
+        key: 'status',
+        title: t('shares.status', '状态'),
+        render: (share) => (
+          <span
+            className={`shares__badge shares__badge--clickable data-table-tag ${
+              !share.enabled
+                ? 'shares__badge--disabled'
+                : isExpired(share)
+                  ? 'shares__badge--expired'
+                  : isExhausted(share)
+                    ? 'shares__badge--exhausted'
+                    : 'shares__badge--active'
+            }`}
+            onClick={() => handleToggle(share.id)}
+            title={t('shares.clickToToggle', '点击切换')}
+          >
+            {!share.enabled
+              ? t('shares.disabled', '禁用')
+              : isExpired(share)
+                ? t('shares.expired', '过期')
+                : isExhausted(share)
+                  ? t('shares.exhausted', '耗尽')
+                  : t('shares.active', '正常')}
+          </span>
+        ),
+      },
+      {
+        key: 'actions',
+        title: t('common.actions', '操作'),
+        render: (share) => (
+          <TableActions>
+            <TableLinkButton onClick={() => copyLink(share)}>
+              {copiedId === share.id ? <Check size={14} /> : <Copy size={14} />}
+              {t('shares.copyLink', '复制链接')}
+            </TableLinkButton>
+            <TableLinkButton onClick={() => handleOpenDrawer(share)}>
+              <Edit size={14} />
+              {t('common.edit', '编辑')}
+            </TableLinkButton>
+            <TableLinkButton danger onClick={() => handleDelete(share.id)}>
+              <Trash2 size={14} />
+              {t('common.delete', '删除')}
+            </TableLinkButton>
+          </TableActions>
+        ),
+      },
+    ],
+    [t, copiedId],
+  )
 
   return (
-    <div className="shares__container">
-      <div className="shares__header">
-        <h1>{t('shares.title', '分享管理')}</h1>
-        <div className="shares__actions">
-          <div className="shares__search">
-            <Search size={18} />
-            <input
-              type="text"
-              placeholder={t('shares.searchPlaceholder', '搜索...')}
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            />
-          </div>
-          <button className="shares__add-btn" onClick={() => handleOpenDrawer()}>
-            <Plus size={18} />
+    <div className="manage-page shares__container">
+      <PageLayout
+        leftSlot={
+          <SearchInput
+            value={search}
+            placeholder={t('shares.searchPlaceholder', '搜索...')}
+            onChange={handleSearch}
+          />
+        }
+        rightSlot={
+          <Button size="sm" onClick={() => handleOpenDrawer()}>
+            <Plus size={16} />
             {t('shares.add', '新建')}
-          </button>
+          </Button>
+        }
+      >
+        <div className="manage-page__table-fill">
+          <DataTable
+            columns={columns}
+            data={shares}
+            rowKey={(row) => row.id}
+            loading={loading}
+            emptyText={t('shares.empty', '暂无分享')}
+            tableClassName="data-table--entity-list"
+            listLayoutId="shares"
+            pagination={{ page, size: perPage, total }}
+            onPageChange={setPage}
+            onSizeChange={(size) => {
+              setPerPage(size)
+              setPage(1)
+            }}
+          />
         </div>
-      </div>
-
-      {shares.length === 0 ? (
-        <div className="shares__empty">
-          <Share2 size={48} strokeWidth={1.5} />
-          <p>{t('shares.empty', '暂无分享')}</p>
-          <button onClick={() => handleOpenDrawer()}>
-            <Plus size={18} />
-            {t('shares.add', '新建')}
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className="shares__table-container">
-            <table className="shares__table">
-              <thead>
-                <tr>
-                  <th className="shares__col-creator">{t('shares.creator', '创建者')}</th>
-                  <th className="shares__col-name">{t('shares.name', '名称')}</th>
-                  <th className="shares__col-path">{t('shares.path', '路径')}</th>
-                  <th className="shares__col-password">{t('shares.password', '密码')}</th>
-                  <th className="shares__col-created">{t('shares.createdAt', '创建时间')}</th>
-                  <th className="shares__col-expires">{t('shares.expiresAt', '到期时间')}</th>
-                  <th className="shares__col-access">{t('shares.count', '次数')}</th>
-                  <th className="shares__col-status">{t('shares.status', '状态')}</th>
-                  <th className="shares__col-actions">{t('common.actions', '操作')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shares.map((share) => (
-                  <tr key={share.id}>
-                    <td>
-                      <span className="shares__creator">{share.creator_name || t('shares.guest', '游客')}</span>
-                    </td>
-                    <td>
-                      <div className="shares__name">
-                        {share.is_dir ? <Folder size={14} /> : <File size={14} />}
-                        <span title={share.name}>{share.name}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="shares__path" title={share.path}>{share.path}</span>
-                    </td>
-                    <td>
-                      <span className={`shares__password ${share.has_password ? 'shares__password--set' : ''}`}>
-                        {share.has_password ? <Lock size={14} /> : <Unlock size={14} />}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="shares__date">{formatDate(share.created_at)}</span>
-                    </td>
-                    <td>
-                      <span className="shares__date">{share.expires_at ? formatDate(share.expires_at) : t('shares.never', '永久')}</span>
-                    </td>
-                    <td>
-                      <span className="shares__access-count">
-                        {share.access_count}/{share.max_access_count ?? '∞'}
-                      </span>
-                    </td>
-                    <td>
-                      <span 
-                        className={`shares__badge shares__badge--clickable ${
-                          !share.enabled ? 'shares__badge--disabled' : 
-                          isExpired(share) ? 'shares__badge--expired' : 
-                          isExhausted(share) ? 'shares__badge--exhausted' : 
-                          'shares__badge--active'
-                        }`}
-                        onClick={() => handleToggle(share.id)}
-                        title={t('shares.clickToToggle', '点击切换')}
-                      >
-                        {!share.enabled ? t('shares.disabled', '禁用') : 
-                         isExpired(share) ? t('shares.expired', '过期') : 
-                         isExhausted(share) ? t('shares.exhausted', '耗尽') : 
-                         t('shares.active', '正常')}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="shares__table-actions">
-                        <button
-                          className="shares__action-btn"
-                          title={t('shares.copyLink', '复制链接')}
-                          onClick={() => copyLink(share)}
-                        >
-                          {copiedId === share.id ? <Check size={16} /> : <Copy size={16} />}
-                        </button>
-                        <button
-                          className="shares__action-btn"
-                          title={t('common.edit', '编辑')}
-                          onClick={() => handleOpenDrawer(share)}
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          className="shares__action-btn shares__action-btn--danger"
-                          title={t('common.delete', '删除')}
-                          onClick={() => handleDelete(share.id)}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="shares__pagination">
-            <div className="shares__pagination-info">
-              <span>{t('shares.perPage', '每页')}</span>
-              <Select
-                value={perPage.toString()}
-                options={[
-                  { value: '10', label: '10' },
-                  { value: '20', label: '20' },
-                  { value: '50', label: '50' }
-                ]}
-                onChange={(value) => { setPerPage(Number(value)); setPage(1); }}
-              />
-              <span>{t('shares.totalItems', '条，共 {total} 条').replace('{total}', total.toString())}</span>
-            </div>
-            <div className="shares__pagination-controls">
-              <button 
-                className="shares__page-btn"
-                disabled={page <= 1}
-                onClick={() => setPage(1)}
-              >
-                <ChevronsLeft size={16} />
-              </button>
-              <button 
-                className="shares__page-btn"
-                disabled={page <= 1}
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <div className="shares__page-numbers">
-                {getPageNumbers().map(pageNum => (
-                  <button
-                    key={pageNum}
-                    className={`shares__page-number ${pageNum === page ? 'shares__page-number--active' : ''}`}
-                    onClick={() => setPage(pageNum)}
-                  >
-                    {pageNum}
-                  </button>
-                ))}
-              </div>
-              <button 
-                className="shares__page-btn"
-                disabled={page >= totalPages}
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              >
-                <ChevronRight size={16} />
-              </button>
-              <button 
-                className="shares__page-btn"
-                disabled={page >= totalPages}
-                onClick={() => setPage(totalPages)}
-              >
-                <ChevronsRight size={16} />
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+      </PageLayout>
 
       {showDrawer && (
         <div className={`shares__drawer-overlay ${drawerClosing ? 'shares__drawer-overlay--closing' : ''}`} onClick={handleCloseDrawer}>
@@ -562,10 +513,10 @@ export default function Shares() {
             <div className="shares__modal-footer">
               <span className="shares__current-path">{currentBrowsePath}</span>
               <div className="shares__modal-buttons">
-                <button className="shares__select-dir-btn" onClick={handleSelectDir}>
+                <button type="button" className="shares__select-dir-btn" onClick={handleSelectDir}>
                   {t('shares.selectThisDir', '选择当前目录')}
                 </button>
-                <button onClick={() => setShowPathSelector(false)}>
+                <button type="button" onClick={() => setShowPathSelector(false)}>
                   {t('common.close', '关闭')}
                 </button>
               </div>

@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef, createContext, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import Vara from 'vara'
 import { 
   ChevronRight, Home, Sun, Moon, Languages, Lock,
   RefreshCw, FilePlus, FolderPlus, Upload, CheckSquare, ListTodo
 } from 'lucide-react'
 import { api } from '../../utils/api'
 import { Tooltip } from '../../components/Tooltip/Tooltip'
+import FixedAnchoredMenu from '../../components/FixedAnchoredMenu'
 import TaskSidebar from '../../components/TaskSidebar'
 import UserSettingsSidebar from '../../components/UserSettingsSidebar'
 import { MetaContentRenderer } from '../../components/FilePageLayout'
+import { healStuckDocumentScrollStyles } from '../../utils/scrollLock'
+import { applyThemeTransition, type ThemeTransitionOrigin } from '../../utils/themeTransition'
 import FileBrowserContent from './FileBrowserContent'
 import FilePreviewContent from './FilePreviewContent'
 import LoginBg from './LoginBg'
@@ -58,7 +60,7 @@ export const SharedContext = createContext<{
   // 站点配置
   backgroundImage: string
   darkMode: boolean
-  setDarkMode: (value: boolean) => void
+  setDarkMode: (value: boolean, origin?: ThemeTransitionOrigin) => void
   language: string
   setLanguage: (value: string) => void
   siteTitle: string
@@ -68,6 +70,7 @@ export const SharedContext = createContext<{
   // 用户状态
   isLoggedIn: boolean
   setIsLoggedIn: (value: boolean) => void
+  username: string | null
   permissions: UserPermissions | null
   // 页面状态（由子组件更新）
   pageState: PageState
@@ -114,6 +117,7 @@ export const SharedContext = createContext<{
   glassEffect: false,
   isLoggedIn: false,
   setIsLoggedIn: () => {},
+  username: null,
   permissions: null,
   pageState: { header: '', readme: '', passwordRequired: false, passwordInput: '', passwordError: false, passwordLoading: false, contentLoading: true },
   setPageState: () => {},
@@ -190,6 +194,7 @@ export default function FileRouter() {
   
   // ========== 用户状态 ==========
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [username, setUsername] = useState<string | null>(null)
   const [permissions, setPermissions] = useState<UserPermissions | null>(null)
   
   // ========== 页面状态 ==========
@@ -213,6 +218,7 @@ export default function FileRouter() {
   
   // ========== UI 状态 ==========
   const [showLangMenu, setShowLangMenu] = useState(false)
+  const langAnchorRef = useRef<HTMLDivElement>(null)
   const [userSettingsDialog, setUserSettingsDialog] = useState(false)
   const [taskSidebarVisible, setTaskSidebarVisible] = useState(false)
   const [headerButtons, setHeaderButtons] = useState<React.ReactNode>(null)
@@ -240,10 +246,6 @@ export default function FileRouter() {
   const setOnPasswordSubmit = useCallback((fn: ((password: string) => void) | undefined) => {
     setOnPasswordSubmitState(() => fn)
   }, [])
-  
-  // ========== Vara 动画 ==========
-  const varaInitialized = useRef(false)
-  const varaContainerId = 'vara-container-main'
   
   // ========== Refs ==========
   const settingsLoaded = useRef(false)
@@ -281,6 +283,7 @@ export default function FileRouter() {
             return
           }
           setIsLoggedIn(!data.is_guest)
+          setUsername(data.user?.username ?? null)
           if (data.permissions) {
             setPermissions({
               read_files: !!data.permissions.read_files,
@@ -299,6 +302,7 @@ export default function FileRouter() {
       } catch {}
     }
     checkAuth()
+    healStuckDocumentScrollStyles()
   }, [])
 
   // ========== 深色模式 ==========
@@ -306,10 +310,12 @@ export default function FileRouter() {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light')
   }, [darkMode])
   
-  const handleSetDarkMode = useCallback((value: boolean) => {
-    setDarkMode(value)
-    localStorage.setItem('darkMode', String(value))
-    document.documentElement.setAttribute('data-theme', value ? 'dark' : 'light')
+  const handleSetDarkMode = useCallback((value: boolean, origin?: ThemeTransitionOrigin) => {
+    applyThemeTransition(() => {
+      setDarkMode(value)
+      localStorage.setItem('darkMode', String(value))
+      document.documentElement.setAttribute('data-theme', value ? 'dark' : 'light')
+    }, origin)
   }, [])
 
   // ========== 语言切换 ==========
@@ -318,6 +324,7 @@ export default function FileRouter() {
     localStorage.setItem('language', lang)
     i18n.changeLanguage(lang)
     setShowLangMenu(false)
+    healStuckDocumentScrollStyles()
   }, [i18n])
 
   // ========== 毛玻璃效果 ==========
@@ -378,38 +385,6 @@ export default function FileRouter() {
     })
     checkPathType()
   }, [currentPath, setPageState])
-
-  // ========== Vara 动画 ==========
-  useEffect(() => {
-    if (varaInitialized.current) return
-    const container = document.getElementById(varaContainerId)
-    
-    if (container && container.children.length === 0) {
-      varaInitialized.current = true
-      let isMounted = true
-      
-      const playAnimation = () => {
-        const currentContainer = document.getElementById(varaContainerId)
-        if (!isMounted || !currentContainer) return
-        
-        currentContainer.innerHTML = ''
-        try {
-          const vara = new Vara(
-            `#${varaContainerId}`,
-            'https://cdn.jsdelivr.net/npm/vara@1.4.0/fonts/Satisfy/SatisfySL.json',
-            [{ text: 'YaoList', fontSize: 20, strokeWidth: 1.5, duration: 2000 }],
-            { strokeWidth: 1.5, color: '#667eea' }
-          )
-          vara.animationEnd(() => {
-            if (isMounted) setTimeout(playAnimation, 1500)
-          })
-        } catch {}
-      }
-      playAnimation()
-      
-      return () => { isMounted = false }
-    }
-  }, [])
 
   // ========== 面包屑 ==========
   const breadcrumbs = useMemo(() => {
@@ -479,6 +454,7 @@ export default function FileRouter() {
     glassEffect,
     isLoggedIn,
     setIsLoggedIn,
+    username,
     permissions,
     pageState,
     setPageState,
@@ -495,7 +471,7 @@ export default function FileRouter() {
     setOnPasswordSubmit
   }), [
     backgroundImage, darkMode, handleSetDarkMode, language, handleSetLanguage,
-    siteTitle, siteIcon, hasBackground, glassEffect, isLoggedIn, permissions,
+    siteTitle, siteIcon, hasBackground, glassEffect, isLoggedIn, username, permissions,
     pageState, setPageState, taskSidebarVisible, onCancelUpload, setOnCancelUpload,
     headerButtons, currentPath, setFloatingToolbar,
     onPasswordSubmit, setOnPasswordSubmit
@@ -518,7 +494,7 @@ export default function FileRouter() {
               {headerButtons}
               
               {/* 语言切换 */}
-              <div className="file-browser__lang-switch">
+              <div className="file-browser__lang-switch" ref={langAnchorRef}>
                 <Tooltip text={t('fileBrowser.switchLanguage')} position="bottom">
                   <button 
                     className="file-browser__header-btn"
@@ -527,29 +503,32 @@ export default function FileRouter() {
                     <Languages size={18} />
                   </button>
                 </Tooltip>
-                {showLangMenu && (
-                  <div className="file-browser__lang-menu">
-                    <button 
-                      className={`file-browser__lang-item ${language === 'zh-CN' ? 'active' : ''}`}
-                      onClick={() => handleSetLanguage('zh-CN')}
-                    >
-                      简体中文
-                    </button>
-                    <button 
-                      className={`file-browser__lang-item ${language === 'en-US' ? 'active' : ''}`}
-                      onClick={() => handleSetLanguage('en-US')}
-                    >
-                      English
-                    </button>
-                  </div>
-                )}
+                <FixedAnchoredMenu
+                  open={showLangMenu}
+                  anchorRef={langAnchorRef}
+                  className="file-browser__lang-menu"
+                  align="end"
+                >
+                  <button 
+                    className={`file-browser__lang-item ${language === 'zh-CN' ? 'active' : ''}`}
+                    onClick={() => handleSetLanguage('zh-CN')}
+                  >
+                    简体中文
+                  </button>
+                  <button 
+                    className={`file-browser__lang-item ${language === 'en-US' ? 'active' : ''}`}
+                    onClick={() => handleSetLanguage('en-US')}
+                  >
+                    English
+                  </button>
+                </FixedAnchoredMenu>
               </div>
               
               {/* 暗色模式切换 */}
               <Tooltip text={darkMode ? t('fileBrowser.switchToLight') : t('fileBrowser.switchToDark')} position="bottom">
                 <button 
                   className="file-browser__header-btn"
-                  onClick={() => handleSetDarkMode(!darkMode)}
+                  onClick={(e) => handleSetDarkMode(!darkMode, { x: e.clientX, y: e.clientY })}
                 >
                   {darkMode ? <Sun size={18} /> : <Moon size={18} />}
                 </button>
@@ -711,15 +690,12 @@ export default function FileRouter() {
 
           {/* ===== 页面底部（始终渲染） ===== */}
           <div className="file-browser__page-footer">
-            <a 
-              href="https://github.com/ChuYao233/YaoList" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="file-browser__page-footer-link"
-            >
-              <span id={varaContainerId} className="file-browser__vara-container"></span>
-            </a>
-            <span className="file-browser__page-footer-sep">|</span>
+            {isLoggedIn && username && (
+              <>
+                <span className="file-browser__page-footer-user">{username}</span>
+                <span className="file-browser__page-footer-sep">|</span>
+              </>
+            )}
             {isLoggedIn ? (
               <a 
                 href="#" 

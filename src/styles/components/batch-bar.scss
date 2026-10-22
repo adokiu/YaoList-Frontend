@@ -1,5 +1,4 @@
-@import '../variables';
-@import '../mixins';
+@use '../mixins' as *;
 
 .users__batch-bar {
   display: flex;

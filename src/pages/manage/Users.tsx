@@ -1,10 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, X, CheckCircle, XCircle, ChevronsLeft, ChevronsRight, Folder } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, X, CheckCircle, XCircle, Folder } from 'lucide-react'
 import { api } from '../../utils/api'
 import { useToast } from '../../components/Toast'
 import { Select } from '../../components/Select'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { PageLayout } from '../../components/PageLayout/PageLayout'
+import { DataTable, type Column } from '../../components/DataTable/DataTable'
+import { SearchInput } from '../../components/SearchInput/SearchInput'
+import { Button } from '../../components/Button/Button'
+import { TableActions, TableCell, TableLinkButton } from '../../components/manage/tableCells'
 import '../../styles/pages/users.scss'
 import '../../styles/components/batch-bar.scss'
 
@@ -210,7 +215,7 @@ export default function Users() {
     }
   }
 
-  const handleDelete = (userId: string, username: string) => {
+  const handleDelete = useCallback((userId: string, username: string) => {
     setConfirmDialog({
       isOpen: true,
       title: t('users.deleteConfirm'),
@@ -223,10 +228,155 @@ export default function Users() {
         } catch (err) {
           toast.error(t('users.deleteFailed'))
         }
-        setConfirmDialog({ ...confirmDialog, isOpen: false })
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }))
       }
     })
-  }
+  }, [t, toast])
+
+  const formatTimestamp = (dateStr: string) =>
+    new Date(dateStr).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+
+  const openCreate = useCallback(() => {
+    setEditingUser(null)
+    setShowEditDialog(true)
+  }, [])
+
+  const columns: Column<User>[] = useMemo(
+    () => [
+      {
+        key: 'id',
+        title: t('users.id'),
+        fixedWidth: true,
+        width: 80,
+        render: (user) => (
+          <TableCell>
+            <code className="users__unique-id">{user.unique_id}</code>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'username',
+        title: t('users.username'),
+        render: (user) => (
+          <TableCell large>
+            <div className="users__username">{user.username}</div>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'email',
+        title: t('users.email'),
+        render: (user) => <TableCell>{user.email || '-'}</TableCell>,
+      },
+      {
+        key: 'phone',
+        title: t('users.phone'),
+        render: (user) => <TableCell>{user.phone || '-'}</TableCell>,
+      },
+      {
+        key: 'groups',
+        title: t('users.userGroup'),
+        render: (user) => (
+          <TableCell>
+            <div className="users__groups">
+              {userGroups[user.id]?.length > 0 ? (
+                userGroups[user.id].map((group) => (
+                  <span key={group.id} className="users__group-tag">
+                    {group.name}
+                  </span>
+                ))
+              ) : (
+                <span className="users__no-group">{t('users.noGroup')}</span>
+              )}
+            </div>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'total_traffic',
+        title: t('users.totalTraffic'),
+        render: (user) => (
+          <TableCell>
+            <span className="users__traffic">{formatTraffic(user.total_traffic)}</span>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'total_requests',
+        title: t('users.requests'),
+        render: (user) => (
+          <TableCell>
+            <span className="users__requests">{formatNumber(user.total_requests)}</span>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'enabled',
+        title: t('users.status'),
+        render: (user) => (
+          <button
+            type="button"
+            className={`users__status-toggle data-table-tag ${user.enabled ? 'users__status-toggle--active' : 'users__status-toggle--inactive'}`}
+            onClick={() => handleToggleStatus(user.id, user.enabled)}
+            title={user.enabled ? t('users.disable') : t('users.enable')}
+          >
+            {user.enabled ? <CheckCircle size={16} /> : <XCircle size={16} />}
+            {user.enabled ? t('users.enabled') : t('users.disabled')}
+          </button>
+        ),
+      },
+      {
+        key: 'created_at',
+        title: t('users.createdAt'),
+        render: (user) => (
+          <TableCell>
+            <span className="users__timestamp">{formatTimestamp(user.created_at)}</span>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'last_login',
+        title: t('users.lastLogin'),
+        render: (user) => (
+          <TableCell>
+            <span className="users__timestamp">
+              {user.last_login ? formatTimestamp(user.last_login) : t('users.neverLogin')}
+            </span>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'actions',
+        title: t('users.actions'),
+        render: (user) => (
+          <TableActions>
+            <TableLinkButton
+              onClick={() => {
+                setEditingUser(user)
+                setShowEditDialog(true)
+              }}
+            >
+              <Edit size={14} />
+              {t('users.edit')}
+            </TableLinkButton>
+            <TableLinkButton danger onClick={() => handleDelete(user.id, user.username)}>
+              <Trash2 size={14} />
+              {t('users.delete')}
+            </TableLinkButton>
+          </TableActions>
+        ),
+      },
+    ],
+    [t, userGroups, handleDelete],
+  )
+
+  const selectedKeys = useMemo(() => new Set(selectedUsers), [selectedUsers])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -271,311 +421,104 @@ export default function Users() {
     }
   }
 
-  if (loading && !data) {
-    return (
-      <div className="users__container">
-        <div className="users__loading">加载中...</div>
-      </div>
-    )
-  }
-
   return (
-    <div className="users__container">
-      <div className="users__header">
-        <h1>{t('users.title')}</h1>
-        <div className="users__actions">
-          <div className="users__filters">
-            <Select
-              value={filters.enabled}
-              onChange={(value) => setFilters({...filters, enabled: value as any})}
-              options={[
-                { value: 'all', label: t('users.allStatus') },
-                { value: 'enabled', label: t('users.enabled') },
-                { value: 'disabled', label: t('users.disabled') }
-              ]}
-            />
-            
-            <Select
-              value={filters.has_2fa}
-              onChange={(value) => setFilters({...filters, has_2fa: value as any})}
-              options={[
-                { value: 'all', label: t('users.all2FA') },
-                { value: 'yes', label: t('users.2FAEnabled') },
-                { value: 'no', label: t('users.2FADisabled') }
-              ]}
-            />
-            
-            <Select
-              value={filters.group_id}
-              onChange={(value) => setFilters({...filters, group_id: value})}
-              options={[
-                { value: '', label: t('users.allGroups') },
-                ...allGroups.map(group => ({ value: group.id, label: group.name }))
-              ]}
-            />
-          </div>
-          
-          <div className="users__search">
-            <Search size={18} />
-            <input
-              type="text"
-              placeholder={t('users.searchPlaceholder')}
+    <div className="manage-page users__container">
+      <PageLayout
+        leftSlot={
+          <>
+            <SearchInput
               value={search}
-              onChange={(e) => handleSearch(e.target.value)}
+              placeholder={t('users.searchPlaceholder')}
+              onChange={handleSearch}
             />
-          </div>
-          <button 
-            className="users__add-btn"
-            onClick={() => {
-              setEditingUser(null)
-              setShowEditDialog(true)
-            }}
-          >
-            <Plus size={18} />
-            {t('users.addUser')}
-          </button>
-        </div>
-      </div>
-
-      {selectedUsers.length > 0 && (
-        <div className="users__batch-bar">
-          <span className="users__batch-count">{t('users.batchSelected')} {selectedUsers.length}</span>
-          <div className="users__batch-actions">
-            <button className="users__batch-btn">{t('users.batchEnable')}</button>
-            <button className="users__batch-btn">{t('users.batchDisable')}</button>
-            <button className="users__batch-btn">{t('users.changeGroup')}</button>
-            <button className="users__batch-btn">{t('users.changeRootPath')}</button>
-            <button className="users__batch-btn users__batch-btn--danger">{t('users.batchDelete')}</button>
-            <button className="users__batch-btn" onClick={() => setSelectedUsers([])}>{t('users.cancelSelection')}</button>
-          </div>
-        </div>
-      )}
-
-      <div className="users__table-container">
-        <table className="users__table">
-          <thead>
-            <tr>
-              <th>
-                <input
-                  type="checkbox"
-                  checked={selectedUsers.length === (data?.users.length || 0) && (data?.users.length || 0) > 0}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelectedUsers(data?.users.map(u => u.id) || [])
-                    } else {
-                      setSelectedUsers([])
-                    }
-                  }}
-                />
-              </th>
-              <th>{t('users.id')}</th>
-              <th>{t('users.username')}</th>
-              <th>{t('users.email')}</th>
-              <th>{t('users.phone')}</th>
-              <th>{t('users.userGroup')}</th>
-              <th>{t('users.totalTraffic')}</th>
-              <th>{t('users.requests')}</th>
-              <th>{t('users.status')}</th>
-              <th>{t('users.createdAt')}</th>
-              <th>{t('users.lastLogin')}</th>
-              <th>{t('users.actions')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data?.users.map((user) => (
-              <tr key={user.id}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={selectedUsers.includes(user.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedUsers([...selectedUsers, user.id])
-                      } else {
-                        setSelectedUsers(selectedUsers.filter(id => id !== user.id))
-                      }
-                    }}
-                  />
-                </td>
-                <td>
-                  <code className="users__unique-id">{user.unique_id}</code>
-                </td>
-                <td>
-                  <div className="users__username">
-                    {user.username}
-                  </div>
-                </td>
-                <td>{user.email || '-'}</td>
-                <td>{user.phone || '-'}</td>
-                <td>
-                  <div className="users__groups">
-                    {userGroups[user.id]?.length > 0 ? (
-                      userGroups[user.id].map(group => (
-                        <span key={group.id} className="users__group-tag">
-                          {group.name}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="users__no-group">{t('users.noGroup')}</span>
-                    )}
-                  </div>
-                </td>
-                <td>
-                  <span className="users__traffic">
-                    {formatTraffic(user.total_traffic)}
-                  </span>
-                </td>
-                <td>
-                  <span className="users__requests">
-                    {formatNumber(user.total_requests)}
-                  </span>
-                </td>
-                <td>
-                  <button 
-                    className={`users__status-toggle ${user.enabled ? 'users__status-toggle--active' : 'users__status-toggle--inactive'}`}
-                    onClick={() => handleToggleStatus(user.id, user.enabled)}
-                    title={user.enabled ? t('users.disable') : t('users.enable')}
-                  >
-                    {user.enabled ? <CheckCircle size={16} /> : <XCircle size={16} />}
-                    {user.enabled ? t('users.enabled') : t('users.disabled')}
-                  </button>
-                </td>
-                <td>
-                  <span className="users__timestamp">
-                    {new Date(user.created_at).toLocaleString('zh-CN', {year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'})}
-                  </span>
-                </td>
-                <td>
-                  <span className="users__timestamp">
-                    {user.last_login ? new Date(user.last_login).toLocaleString('zh-CN', {year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'}) : t('users.neverLogin')}
-                  </span>
-                </td>
-                <td>
-                  <div className="users__table-actions">
-                    <button 
-                      className="users__icon-btn"
-                      title={t('users.edit')}
-                      onClick={() => {
-                        setEditingUser(user)
-                        setShowEditDialog(true)
-                      }}
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button 
-                      className="users__icon-btn users__icon-btn--danger" 
-                      title={t('users.delete')}
-                      onClick={() => handleDelete(user.id, user.username)}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {data && (
-        <div className="users__footer">
-          <div className="users__page-size-selector">
-            <span>{t('users.perPage')}</span>
-            <Select
-              value={pageSize.toString()}
-              onChange={(value) => {
-                setPageSize(Number(value))
-                setCurrentPage(1)
-              }}
-              options={[
-                { value: '10', label: '10' },
-                { value: '20', label: '20' },
-                { value: '50', label: '50' },
-                { value: '100', label: '100' }
-              ]}
-            />
-            <span>{t('users.items')}</span>
-          </div>
-          
-          <div className="users__pagination">
-            <button
-              className="users__page-btn"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(1)}
-              title={t('users.firstPage')}
-            >
-              <ChevronsLeft size={16} />
-            </button>
-            <button
-              className="users__page-btn"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(currentPage - 1)}
-              title={t('users.prevPage')}
-            >
-              <ChevronLeft size={16} />
-            </button>
-            
-            <div className="users__page-numbers">
-              {Array.from({ length: Math.min(5, data.total_pages) }, (_, i) => {
-                let pageNum;
-                if (data.total_pages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= data.total_pages - 2) {
-                  pageNum = data.total_pages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
-                
-                return (
-                  <button
-                    key={pageNum}
-                    className={`users__page-number ${currentPage === pageNum ? 'users__page-number--active' : ''}`}
-                    onClick={() => setCurrentPage(pageNum)}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-            </div>
-            
-            <button
-              className="users__page-btn"
-              disabled={currentPage === data.total_pages}
-              onClick={() => setCurrentPage(currentPage + 1)}
-              title="下一页"
-            >
-              <ChevronRight size={16} />
-            </button>
-            <button
-              className="users__page-btn"
-              disabled={currentPage === data.total_pages}
-              onClick={() => setCurrentPage(data.total_pages)}
-              title="末页"
-            >
-              <ChevronsRight size={16} />
-            </button>
-            
-            <div className="users__page-jump">
-              <span>{t('users.jumpTo')}</span>
-              <input
-                type="number"
-                min="1"
-                max={data.total_pages}
-                value={currentPage}
-                onChange={(e) => {
-                  const page = Number(e.target.value)
-                  if (page >= 1 && page <= data.total_pages) {
-                    setCurrentPage(page)
-                  }
-                }}
+            <div className="users__filters">
+              <Select
+                value={filters.enabled}
+                onChange={(value) => setFilters({ ...filters, enabled: value as typeof filters.enabled })}
+                options={[
+                  { value: 'all', label: t('users.allStatus') },
+                  { value: 'enabled', label: t('users.enabled') },
+                  { value: 'disabled', label: t('users.disabled') },
+                ]}
               />
-              <span>{t('users.page')}</span>
+              <Select
+                value={filters.has_2fa}
+                onChange={(value) => setFilters({ ...filters, has_2fa: value as typeof filters.has_2fa })}
+                options={[
+                  { value: 'all', label: t('users.all2FA') },
+                  { value: 'yes', label: t('users.2FAEnabled') },
+                  { value: 'no', label: t('users.2FADisabled') },
+                ]}
+              />
+              <Select
+                value={filters.group_id}
+                onChange={(value) => setFilters({ ...filters, group_id: value })}
+                options={[
+                  { value: '', label: t('users.allGroups') },
+                  ...allGroups.map((group) => ({ value: group.id, label: group.name })),
+                ]}
+              />
+            </div>
+          </>
+        }
+        rightSlot={
+          <Button size="sm" onClick={openCreate}>
+            <Plus size={16} />
+            {t('users.addUser')}
+          </Button>
+        }
+      >
+        {selectedUsers.length > 0 && (
+          <div className="manage-page__batch users__batch-bar">
+            <span className="users__batch-count">
+              {t('users.batchSelected')} {selectedUsers.length}
+            </span>
+            <div className="users__batch-actions">
+              <button type="button" className="users__batch-btn">
+                {t('users.batchEnable')}
+              </button>
+              <button type="button" className="users__batch-btn">
+                {t('users.batchDisable')}
+              </button>
+              <button type="button" className="users__batch-btn">
+                {t('users.changeGroup')}
+              </button>
+              <button type="button" className="users__batch-btn">
+                {t('users.changeRootPath')}
+              </button>
+              <button type="button" className="users__batch-btn users__batch-btn--danger">
+                {t('users.batchDelete')}
+              </button>
+              <button type="button" className="users__batch-btn" onClick={() => setSelectedUsers([])}>
+                {t('users.cancelSelection')}
+              </button>
             </div>
           </div>
+        )}
+
+        <div className="manage-page__table-fill">
+          <DataTable
+            columns={columns}
+            data={data?.users ?? []}
+            rowKey={(row) => row.id}
+            loading={loading}
+            emptyText={t('users.noData', { defaultValue: '暂无数据' })}
+            selectable
+            selectedKeys={selectedKeys}
+            onSelectionChange={(keys) => setSelectedUsers([...keys].map((k) => String(k)))}
+            tableClassName="data-table--entity-list"
+            listLayoutId="users"
+            pagination={
+              data ? { page: currentPage, size: pageSize, total: data.total } : undefined
+            }
+            onPageChange={setCurrentPage}
+            onSizeChange={(size) => {
+              setPageSize(size)
+              setCurrentPage(1)
+            }}
+          />
         </div>
-      )}
+      </PageLayout>
 
       {showEditDialog && (
         <div className={`users__drawer-overlay ${drawerClosing ? 'users__drawer-overlay--closing' : ''}`} onClick={() => { setDrawerClosing(true); setTimeout(() => { setShowEditDialog(false); setDrawerClosing(false); }, 300); }}>

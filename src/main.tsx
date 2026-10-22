@@ -9,6 +9,12 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './styles/global.scss'
+import './styles/theme-transition.scss'
+import './styles/admin/fonts.css'
+import './styles/admin/tokens.css'
+import './styles/admin/ambient.css'
+import './styles/admin/manage-page.css'
+import './styles/admin/page-shell.css'
 import './i18n'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

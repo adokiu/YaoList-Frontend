@@ -1,0 +1,129 @@
+.page-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0;
+  gap: 12px;
+  position: relative;
+}
+
+.page-layout__tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.page-layout__tab {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.page-layout__tab:hover {
+  color: var(--text-primary);
+}
+
+.page-layout__tab--active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-color);
+}
+
+.page-layout__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.page-layout__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.page-layout__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.page-layout__content {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: 8px;
+}
+
+.page-layout__footer {
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.page-layout__help-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  color: var(--color-gray-400);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s;
+  font-size: 13px;
+}
+
+.page-layout__help-btn:hover {
+  color: var(--color-gray-600);
+  background: var(--color-gray-100);
+}
+
+/* 手机端响应式 */
+@media (max-width: 768px) {
+  .page-layout {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .page-layout__toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .page-layout__left {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .page-layout__right {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .page-layout__tabs {
+    overflow-x: auto;
+  }
+
+  .page-layout__tab {
+    white-space: nowrap;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+}

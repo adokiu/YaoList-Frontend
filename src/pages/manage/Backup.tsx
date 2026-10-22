@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, Upload, CheckCircle, XCircle, Info, Loader2 } from 'lucide-react'
 import { api } from '../../utils/api'
+import { AdminPageHeader } from '../../components/manage/AdminPageHeader'
 import '../../styles/components/backup-restore.scss'
 
 interface LogItem {
@@ -165,13 +166,8 @@ export default function Backup() {
   }
 
   return (
-    <div className="backup-restore">
-      <div className="backup-restore__header">
-        <h1 className="backup-restore__title">{t('backup.title')}</h1>
-        <p className="backup-restore__description">
-          {t('backup.description')}
-        </p>
-      </div>
+    <div className="admin-page backup-restore">
+      <AdminPageHeader title={t('backup.title')} description={t('backup.description')} />
 
       <div className="backup-restore__actions">
         <button

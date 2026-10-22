@@ -68,8 +68,7 @@ styles/
 ### 引入方式
 
 ```scss
-@import '../variables';
-@import '../mixins';
+@use '../mixins' as *;
 
 .my-component {
   color: $text-primary;

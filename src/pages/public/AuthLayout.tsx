@@ -1,8 +1,10 @@
-import { useState, useEffect, createContext, useContext } from 'react'
+import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Sun, Moon, Languages } from 'lucide-react'
 import LoginBg from './LoginBg'
+import FixedAnchoredMenu from '../../components/FixedAnchoredMenu'
+import { applyThemeTransition } from '../../utils/themeTransition'
 import '../../styles/components/login.scss'
 
 interface AuthContextType {
@@ -36,6 +38,7 @@ export default function AuthLayout() {
     return saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)
   })
   const [showLangMenu, setShowLangMenu] = useState(false)
+  const langAnchorRef = useRef<HTMLDivElement>(null)
 
   const languageNames: Record<string, string> = {
     'zh-CN': '简体中文',
@@ -98,33 +101,37 @@ export default function AuthLayout() {
           {settingsLoaded && <Outlet />}
 
           <div className="login__footer">
-            <div className="login__lang-wrapper">
+            <div className="login__lang-wrapper" ref={langAnchorRef}>
               <button 
                 className="login__footer-btn"
                 onClick={() => setShowLangMenu(!showLangMenu)}
               >
                 <Languages size={28} />
               </button>
-              {showLangMenu && (
-                <div className="login__lang-menu">
-                  {languages.map(lang => (
-                    <button
-                      key={lang.code}
-                      className={`login__lang-item ${i18n.language === lang.code ? 'login__lang-item--active' : ''}`}
-                      onClick={() => {
-                        i18n.changeLanguage(lang.code)
-                        setShowLangMenu(false)
-                      }}
-                    >
-                      {lang.name}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <FixedAnchoredMenu
+                open={showLangMenu}
+                anchorRef={langAnchorRef}
+                className="login__lang-menu"
+                align="center"
+                gap={10}
+              >
+                {languages.map(lang => (
+                  <button
+                    key={lang.code}
+                    className={`login__lang-item ${i18n.language === lang.code ? 'login__lang-item--active' : ''}`}
+                    onClick={() => {
+                      i18n.changeLanguage(lang.code)
+                      setShowLangMenu(false)
+                    }}
+                  >
+                    {lang.name}
+                  </button>
+                ))}
+              </FixedAnchoredMenu>
             </div>
             <button 
               className="login__footer-btn"
-              onClick={() => setDarkMode(!darkMode)}
+              onClick={(e) => applyThemeTransition(() => setDarkMode(!darkMode), { x: e.clientX, y: e.clientY })}
             >
               {darkMode ? <Sun size={28} /> : <Moon size={28} />}
             </button>

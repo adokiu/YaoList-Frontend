@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { 
   RefreshCw, 
@@ -17,12 +17,15 @@ import {
   Copy,
   Move,
   FolderInput,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   Check
 } from 'lucide-react'
 import { api } from '../../utils/api'
+import { useTaskEventsSse, type SidebarTask } from '../../utils/taskEventsSse'
+import { PageLayout } from '../../components/PageLayout/PageLayout'
+import { DataTable, type Column } from '../../components/DataTable/DataTable'
+import { Button } from '../../components/Button/Button'
+import { TableActions, TableCell, TableLinkButton } from '../../components/manage/tableCells'
 import '../../styles/components/tasks.scss'
 
 interface Task {
@@ -46,6 +49,8 @@ interface Task {
   user_id: string | null
   username: string
   current_file: string | null
+  upload_phase?: string
+  openlist_status?: string
 }
 
 interface Pagination {
@@ -68,7 +73,38 @@ export default function Tasks() {
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 20, total: 0, totalPages: 0 })
   const [filters, setFilters] = useState<Filters>({ taskType: '', status: '' })
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
-  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const patchTaskFromSse = useCallback((patch: SidebarTask, _eventType: string) => {
+    setTasks((prev) =>
+      prev.map((row) =>
+        row.id === patch.id
+          ? {
+              ...row,
+              progress: patch.progress,
+              processed_size: patch.processed_size,
+              total_size: patch.total_size,
+              processed_files: patch.processed_files,
+              total_files: patch.total_files,
+              speed: patch.speed,
+              eta_seconds: patch.eta_seconds ?? null,
+              status: patch.status,
+              current_file: patch.current_file ?? null,
+              upload_phase: patch.upload_phase,
+              openlist_status: patch.openlist_status,
+              error: patch.error ?? null,
+              finished_at: patch.finished_at ?? row.finished_at,
+              started_at: patch.started_at ?? row.started_at,
+            }
+          : row,
+      ),
+    )
+  }, [])
+
+  useTaskEventsSse(
+    true,
+    () => {},
+    { snapshotMode: 'ignore', onTaskPatch: patchTaskFromSse },
+  )
   const typeDropdownRef = useRef<HTMLDivElement>(null)
   const statusDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -112,24 +148,6 @@ export default function Tasks() {
   useEffect(() => {
     loadTasks()
   }, [loadTasks])
-
-  // 轮询任务列表（有进行中任务时每2秒刷新，否则不轮询）
-  useEffect(() => {
-    const hasActiveTasks = tasks.some(t => t.status === 'running' || t.status === 'pending' || t.status === 'paused')
-    
-    if (hasActiveTasks) {
-      pollingIntervalRef.current = setInterval(() => {
-        loadTasks()
-      }, 2000)
-    }
-    
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current)
-        pollingIntervalRef.current = null
-      }
-    }
-  }, [tasks, loadTasks])
 
   const cancelTask = async (taskId: string) => {
     try {
@@ -190,12 +208,6 @@ export default function Tasks() {
     }
   }
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= pagination.totalPages) {
-      setPagination(prev => ({ ...prev, page: newPage }))
-    }
-  }
-
   const handleFilterChange = (key: keyof Filters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }))
     setPagination(prev => ({ ...prev, page: 1 }))
@@ -211,15 +223,6 @@ export default function Tasks() {
 
   const formatSpeed = (bytesPerSecond: number) => {
     return formatSize(bytesPerSecond) + '/s'
-  }
-
-  const formatEta = (seconds: number | null) => {
-    if (!seconds) return '--'
-    if (seconds < 60) return `${seconds}秒`
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}分${seconds % 60}秒`
-    const hours = Math.floor(seconds / 3600)
-    const mins = Math.floor((seconds % 3600) / 60)
-    return `${hours}小时${mins}分`
   }
 
   const formatTime = (isoString: string | null) => {
@@ -261,29 +264,172 @@ export default function Tasks() {
     return t(`tasks.types.${key}`, taskType)
   }
 
-  return (
-    <div className="tasks">
-      <div className="tasks__header">
-        <h1>{t('tasks.title')}</h1>
-        <div className="tasks__actions">
-          <button className="tasks__btn tasks__btn--secondary" onClick={() => loadTasks()}>
-            <RefreshCw size={16} />
-            {t('tasks.refresh')}
-          </button>
-          <button className="tasks__btn tasks__btn--secondary" onClick={clearCompleted}>
-            <Trash2 size={16} />
-            {t('tasks.clearCompleted')}
-          </button>
-          {isAdmin && (
-            <button className="tasks__btn tasks__btn--danger" onClick={clearAllCompleted}>
-              <Trash2 size={16} />
-              {t('tasks.clearAllCompleted')}
-            </button>
-          )}
-        </div>
-      </div>
+  const getRunningStatusLabel = (task: Task) => {
+    if (task.task_type === 'upload' && task.status === 'running') {
+      if (task.upload_phase === 'backending') {
+        return t('taskSidebar.statusBackending', { defaultValue: '写入存储' })
+      }
+      if (task.upload_phase === 'uploading') {
+        return t('taskSidebar.statusUploading', { defaultValue: '上传中' })
+      }
+    }
+    return getStatusText(task.status)
+  }
 
-      {/* 筛选器 - Apple Design 风格 */}
+  const columns: Column<Task>[] = useMemo(
+    () => [
+      {
+        key: 'type',
+        title: t('tasks.taskType'),
+        render: (task) => (
+          <TableCell>
+            <div className="tasks__cell-type">
+              {getTaskIcon(task.task_type)}
+              <span>{getTaskTypeText(task.task_type)}</span>
+            </div>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'status',
+        title: t('tasks.status'),
+        render: (task) => (
+          <span className={`tasks__status-badge data-table-tag tasks__status-badge--${task.status}`}>
+            {getStatusIcon(task.status)}
+            <span>{getRunningStatusLabel(task)}</span>
+          </span>
+        ),
+      },
+      {
+        key: 'name',
+        title: t('tasks.taskName'),
+        render: (task) => (
+          <TableCell large>
+            <div className="tasks__cell-name" title={task.name}>
+              {task.name}
+              {task.error && (
+                <span className="tasks__error-hint" title={task.error}>
+                  <AlertCircle size={12} />
+                </span>
+              )}
+            </div>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'source_path',
+        title: t('tasks.sourcePath'),
+        render: (task) => (
+          <TableCell>
+            <span className="tasks__cell-path" title={task.source_path || '--'}>
+              {task.source_path || '--'}
+            </span>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'target_path',
+        title: t('tasks.targetPath'),
+        render: (task) => (
+          <TableCell>
+            <span className="tasks__cell-path" title={task.target_path || '--'}>
+              {task.target_path || '--'}
+            </span>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'progress',
+        title: t('tasks.progress'),
+        render: (task) => (
+          <TableCell>
+            <div className="tasks__cell-progress">
+              <div className="tasks__mini-progress">
+                <div
+                  className={`tasks__mini-progress-fill tasks__mini-progress-fill--${task.status}`}
+                  style={{ width: `${task.progress}%` }}
+                />
+              </div>
+              <span className="tasks__progress-text">{task.progress.toFixed(1)}%</span>
+              {task.status === 'running' && task.speed > 0 && (
+                <span className="tasks__speed">{formatSpeed(task.speed)}</span>
+              )}
+            </div>
+          </TableCell>
+        ),
+      },
+      {
+        key: 'creator',
+        title: t('tasks.creator'),
+        render: (task) => <TableCell>{task.username}</TableCell>,
+      },
+      {
+        key: 'created_at',
+        title: t('tasks.createdAt'),
+        render: (task) => <TableCell>{formatTime(task.created_at)}</TableCell>,
+      },
+      {
+        key: 'actions',
+        title: t('tasks.actions'),
+        render: (task) => (
+          <TableActions>
+            {task.status === 'paused' ? (
+              <TableLinkButton onClick={() => resumeTask(task.id)}>
+                <Play size={14} />
+              </TableLinkButton>
+            ) : (
+              <TableLinkButton
+                onClick={() => pauseTask(task.id)}
+                disabled={task.status !== 'running'}
+              >
+                <Pause size={14} />
+              </TableLinkButton>
+            )}
+            <TableLinkButton
+              danger
+              onClick={() => cancelTask(task.id)}
+              disabled={!['running', 'paused', 'pending'].includes(task.status)}
+            >
+              <X size={14} />
+            </TableLinkButton>
+            <TableLinkButton
+              onClick={() => retryTask(task.id)}
+              disabled={!['failed', 'interrupted'].includes(task.status)}
+            >
+              <RotateCcw size={14} />
+            </TableLinkButton>
+            <TableLinkButton danger onClick={() => removeTask(task.id)}>
+              <Trash2 size={14} />
+            </TableLinkButton>
+          </TableActions>
+        ),
+      },
+    ],
+    [t],
+  )
+
+  return (
+    <div className="manage-page tasks">
+      <PageLayout
+        rightSlot={
+          <>
+            <Button size="sm" variant="secondary" onClick={() => loadTasks()}>
+              <RefreshCw size={16} />
+              {t('tasks.refresh')}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={clearCompleted}>
+              <Trash2 size={16} />
+              {t('tasks.clearCompleted')}
+            </Button>
+            {isAdmin && (
+              <Button size="sm" variant="danger" onClick={clearAllCompleted}>
+                <Trash2 size={16} />
+                {t('tasks.clearAllCompleted')}
+              </Button>
+            )}
+          </>
+        }
+      >
       <div className="tasks__toolbar">
         <div className="tasks__filter-row">
           {/* 任务类型下拉 */}
@@ -372,167 +518,27 @@ export default function Tasks() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="tasks__loading">
-          <Loader2 size={32} className="tasks__loading-icon" />
-          <span>{t('tasks.loading')}</span>
+        <div className="manage-page__table-fill">
+          <DataTable
+            columns={columns}
+            data={tasks}
+            rowKey={(row) => row.id}
+            loading={loading}
+            emptyText={t('tasks.noTasks')}
+            tableClassName="data-table--entity-list"
+            listLayoutId="tasks"
+            pagination={{
+              page: pagination.page,
+              size: pagination.pageSize,
+              total: pagination.total,
+            }}
+            onPageChange={(nextPage) => setPagination((prev) => ({ ...prev, page: nextPage }))}
+            onSizeChange={(size) =>
+              setPagination((prev) => ({ ...prev, pageSize: size, page: 1 }))
+            }
+          />
         </div>
-      ) : tasks.length === 0 ? (
-        <div className="tasks__empty">
-          <FolderInput size={48} />
-          <p>{t('tasks.noTasks')}</p>
-        </div>
-      ) : (
-        <>
-          <div className="tasks__table-wrapper">
-            <table className="tasks__table">
-              <thead>
-                <tr>
-                  <th className="tasks__th-type">{t('tasks.taskType')}</th>
-                  <th className="tasks__th-status">{t('tasks.status')}</th>
-                  <th className="tasks__th-name">{t('tasks.taskName')}</th>
-                  <th className="tasks__th-path">{t('tasks.sourcePath')}</th>
-                  <th className="tasks__th-path">{t('tasks.targetPath')}</th>
-                  <th className="tasks__th-progress">{t('tasks.progress')}</th>
-                  <th className="tasks__th-creator">{t('tasks.creator')}</th>
-                  <th className="tasks__th-time">{t('tasks.createdAt')}</th>
-                  <th className="tasks__th-actions">{t('tasks.actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tasks.map(task => (
-                  <tr key={task.id} className={`tasks__row tasks__row--${task.status}`}>
-                    <td className="tasks__td-type">
-                      <div className="tasks__cell-type">
-                        {getTaskIcon(task.task_type)}
-                        <span>{getTaskTypeText(task.task_type)}</span>
-                      </div>
-                    </td>
-                    <td className="tasks__td-status">
-                      <div className={`tasks__status-badge tasks__status-badge--${task.status}`}>
-                        {getStatusIcon(task.status)}
-                        <span>{getStatusText(task.status)}</span>
-                      </div>
-                    </td>
-                    <td className="tasks__td-name">
-                      <div className="tasks__cell-name" title={task.name}>
-                        {task.name}
-                        {task.error && (
-                          <span className="tasks__error-hint" title={task.error}>
-                            <AlertCircle size={12} />
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="tasks__td-path">
-                      <span className="tasks__cell-path" title={task.source_path || '--'}>
-                        {task.source_path || '--'}
-                      </span>
-                    </td>
-                    <td className="tasks__td-path">
-                      <span className="tasks__cell-path" title={task.target_path || '--'}>
-                        {task.target_path || '--'}
-                      </span>
-                    </td>
-                    <td className="tasks__td-progress">
-                      <div className="tasks__cell-progress">
-                        <div className="tasks__mini-progress">
-                          <div 
-                            className={`tasks__mini-progress-fill tasks__mini-progress-fill--${task.status}`}
-                            style={{ width: `${task.progress}%` }}
-                          />
-                        </div>
-                        <span className="tasks__progress-text">{task.progress.toFixed(1)}%</span>
-                        {task.status === 'running' && task.speed > 0 && (
-                          <span className="tasks__speed">{formatSpeed(task.speed)}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="tasks__td-creator">
-                      <span className="tasks__cell-creator">{task.username}</span>
-                    </td>
-                    <td className="tasks__td-time">
-                      <span className="tasks__cell-time">{formatTime(task.created_at)}</span>
-                    </td>
-                    <td className="tasks__td-actions">
-                      <div className="tasks__cell-actions">
-                        {/* 暂停/继续按钮 - 始终显示 */}
-                        {task.status === 'paused' ? (
-                          <button 
-                            className="tasks__action-btn" 
-                            title={t('tasks.resume')} 
-                            onClick={() => resumeTask(task.id)}
-                          >
-                            <Play size={14} />
-                          </button>
-                        ) : (
-                          <button 
-                            className="tasks__action-btn" 
-                            title={t('tasks.pause')} 
-                            onClick={() => pauseTask(task.id)}
-                            disabled={task.status !== 'running'}
-                          >
-                            <Pause size={14} />
-                          </button>
-                        )}
-                        {/* 取消按钮 - 任务进行中时可用 */}
-                        <button 
-                          className="tasks__action-btn tasks__action-btn--danger" 
-                          title={t('tasks.cancel')} 
-                          onClick={() => cancelTask(task.id)}
-                          disabled={!['running', 'paused', 'pending'].includes(task.status)}
-                        >
-                          <X size={14} />
-                        </button>
-                        {/* 重试按钮 - 失败/中断时可用 */}
-                        <button 
-                          className="tasks__action-btn" 
-                          title={t('tasks.retry')} 
-                          onClick={() => retryTask(task.id)}
-                          disabled={!['failed', 'interrupted'].includes(task.status)}
-                        >
-                          <RotateCcw size={14} />
-                        </button>
-                        {/* 删除按钮 - 始终显示 */}
-                        <button 
-                          className="tasks__action-btn tasks__action-btn--danger" 
-                          title={t('tasks.delete')} 
-                          onClick={() => removeTask(task.id)}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* 分页 */}
-          {pagination.totalPages > 1 && (
-            <div className="tasks__pagination">
-              <button 
-                className="tasks__page-btn" 
-                disabled={pagination.page <= 1}
-                onClick={() => handlePageChange(pagination.page - 1)}
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span className="tasks__page-info">
-                {t('tasks.page', { current: pagination.page, total: pagination.totalPages })}
-              </span>
-              <button 
-                className="tasks__page-btn" 
-                disabled={pagination.page >= pagination.totalPages}
-                onClick={() => handlePageChange(pagination.page + 1)}
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          )}
-        </>
-      )}
+      </PageLayout>
     </div>
   )
 }

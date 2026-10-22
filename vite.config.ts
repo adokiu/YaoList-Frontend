@@ -4,7 +4,15 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   build: {
-    target: 'es2020', // 降低目标版本以支持更多浏览器
+    target: 'es2020',
+    cssTarget: ['chrome107', 'edge107', 'firefox103', 'safari16'],
+  },
+  css: {
+    preprocessorOptions: {
+      scss: {
+        api: 'modern-compiler',
+      },
+    },
   },
   server: {
     port: 5173,
@@ -12,19 +20,17 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:8180',
         changeOrigin: true,
-        secure: false, // 支持WebSocket代理
-        timeout: 600000, // 10分钟超时
+        secure: false,
+        timeout: 600000,
         configure: (proxy, _options) => {
           proxy.on('proxyReq', (proxyReq, req, _res) => {
-            // 确保 cookie 被转发
             if (req.headers.cookie) {
-              proxyReq.setHeader('cookie', req.headers.cookie);
+              proxyReq.setHeader('cookie', req.headers.cookie)
             }
-          });
-          // 设置代理超时
+          })
           proxy.on('error', (err, _req, _res) => {
-            console.log('Proxy error:', err);
-          });
+            console.log('Proxy error:', err)
+          })
         },
       },
       '/download': {
@@ -36,7 +42,7 @@ export default defineConfig({
         target: 'http://127.0.0.1:8180',
         changeOrigin: true,
         secure: false,
-      }
-    }
-  }
+      },
+    },
+  },
 })

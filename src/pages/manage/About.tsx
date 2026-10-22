@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { Loader2, RefreshCw, ExternalLink } from 'lucide-react'
+import { AdminPageHeader } from '../../components/manage/AdminPageHeader'
 import '../../styles/components/about.scss'
 
 export default function About() {
@@ -34,29 +35,32 @@ export default function About() {
   }, [])
 
   return (
-    <div className="about">
-      <div className="about__header">
-        <h1>关于 YaoList</h1>
-        <div className="about__actions">
-          <button 
-            className="about__btn" 
-            onClick={fetchReadme}
-            disabled={loading}
-          >
-            <RefreshCw size={16} className={loading ? 'spinning' : ''} />
-            刷新
-          </button>
-          <a 
-            href="https://github.com/chuyao233/yaolist" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="about__btn"
-          >
-            <ExternalLink size={16} />
-            GitHub
-          </a>
-        </div>
-      </div>
+    <div className="admin-page about">
+      <AdminPageHeader
+        title="关于 YaoList"
+        actions={
+          <>
+            <button
+              type="button"
+              className="about__btn"
+              onClick={fetchReadme}
+              disabled={loading}
+            >
+              <RefreshCw size={16} className={loading ? 'spinning' : ''} />
+              刷新
+            </button>
+            <a
+              href="https://github.com/chuyao233/yaolist"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="about__btn"
+            >
+              <ExternalLink size={16} />
+              GitHub
+            </a>
+          </>
+        }
+      />
 
       <div className="about__content">
         {loading ? (
