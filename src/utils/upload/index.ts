@@ -1,5 +1,5 @@
 export type { UploadBatchContext, UploadOpts, DirectUploadInfo } from './types'
-export { reportBatchStorage } from './progress'
+export { UploadProgressReporter } from './progress'
 export { tryBrowserDirectUpload } from './direct'
 export {
   loadUploadSettings,

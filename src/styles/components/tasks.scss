@@ -406,7 +406,8 @@
   &__mini-progress-fill {
     height: 100%;
     border-radius: 3px;
-    transition: width 0.3s ease;
+    transition: width 0.55s linear;
+    will-change: width;
 
     &--running {
       background: linear-gradient(90deg, #3b82f6, #60a5fa);

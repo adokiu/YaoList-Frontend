@@ -1168,6 +1168,7 @@
     "statusFailed": "失败",
     "statusCancelled": "已取消",
     "statusInterrupted": "已中断",
+    "statusUploading": "上传中",
     "pause": "暂停",
     "resume": "继续",
     "stop": "中止",

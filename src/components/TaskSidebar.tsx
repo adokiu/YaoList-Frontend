@@ -152,21 +152,24 @@ export default function TaskSidebar({ visible, onClose, alwaysConnect = false, o
     }
   }
   
-  // 获取状态文本
+  // 获取状态文本（上传只有“上传中”一个进行中状态，不再区分写入存储）
   const uploadActivityLabel = (task: Task) => {
-    if (task.upload_phase === 'backending') {
-      return t('taskSidebar.statusBackending', { defaultValue: '写入存储' })
+    switch (task.status) {
+      case 'pending':
+        return t('taskSidebar.statusPending')
+      case 'paused':
+        return t('taskSidebar.statusPaused')
+      case 'completed':
+        return t('taskSidebar.statusCompleted')
+      case 'failed':
+        return t('taskSidebar.statusFailed')
+      case 'cancelled':
+        return t('taskSidebar.statusCancelled')
+      case 'interrupted':
+        return t('taskSidebar.statusInterrupted')
+      default:
+        return t('taskSidebar.statusUploading', { defaultValue: '上传中' })
     }
-    if (task.upload_phase === 'uploading') {
-      return t('taskSidebar.statusUploading', { defaultValue: '上传中' })
-    }
-    if (task.openlist_status === 'backending') {
-      return t('taskSidebar.statusBackending', { defaultValue: '写入存储' })
-    }
-    if (task.openlist_status === 'uploading') {
-      return t('taskSidebar.statusUploading', { defaultValue: '上传中' })
-    }
-    return task.openlist_status || getStatusText(task.status)
   }
 
   const getStatusText = (status: string) => {
@@ -369,15 +372,9 @@ export default function TaskSidebar({ visible, onClose, alwaysConnect = false, o
                 {task.current_file && task.status === 'running' && (
                   <div className="task-sidebar__item-current">
                     {(() => {
-                      // 解析 [阶段] 文件名 格式
-                      const match = task.current_file.match(/^\[(.+?)\]\s*(.*)$/)
-                      if (match) {
-                        const phase = match[1]
-                        const filename = match[2]
-                        const displayName = filename.length > 25 ? filename.slice(0, 25) + '...' : filename
-                        return <>{t('taskSidebar.current')}: <span className="task-sidebar__item-phase">[{phase}]</span> {displayName}</>
-                      }
-                      return `${t('taskSidebar.current')}: ${task.current_file.length > 30 ? task.current_file.slice(0, 30) + '...' : task.current_file}`
+                      // 兼容旧任务可能存在的 [阶段] 前缀，但只显示文件名，不再显示两个阶段。
+                      const filename = task.current_file.replace(/^\[.+?\]\s*/, '')
+                      return `${t('taskSidebar.current')}: ${filename.length > 30 ? filename.slice(0, 30) + '...' : filename}`
                     })()}
                   </div>
                 )}
@@ -387,13 +384,18 @@ export default function TaskSidebar({ visible, onClose, alwaysConnect = false, o
                       // 解压任务显示文件数
                       t('taskSidebar.itemsProgress', { processed: task.processed_files, total: task.total_files })
                     ) : (
-                      // 其他任务显示字节数
+                      // 其他任务显示统一进度字节数（与进度条严格一致）
                       <>
                         {formatSize(task.processed_size)} / {formatSize(task.total_size)}
                         {task.total_files > 1 && ` (${task.processed_files}/${task.total_files})`}
                       </>
                     )}
                   </span>
+                  {(task.status === 'running' || task.status === 'paused') && (
+                    <span className="task-sidebar__item-percent">
+                      {Math.floor(task.progress)}%
+                    </span>
+                  )}
                   {task.task_type !== 'extract' && (
                     <span className="task-sidebar__item-speed">
                       {task.status === 'running' ? formatSpeed(task.speed) : '--'}

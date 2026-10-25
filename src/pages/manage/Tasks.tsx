@@ -265,13 +265,12 @@ export default function Tasks() {
   }
 
   const getRunningStatusLabel = (task: Task) => {
-    if (task.task_type === 'upload' && task.status === 'running') {
-      if (task.upload_phase === 'backending') {
-        return t('taskSidebar.statusBackending', { defaultValue: '写入存储' })
-      }
-      if (task.upload_phase === 'uploading') {
-        return t('taskSidebar.statusUploading', { defaultValue: '上传中' })
-      }
+    if (
+      task.task_type === 'upload' &&
+      (task.status === 'running' || task.status === 'paused')
+    ) {
+      // 统一进度后上传只有一个进行中状态。
+      return t('taskSidebar.statusUploading', { defaultValue: '上传中' })
     }
     return getStatusText(task.status)
   }

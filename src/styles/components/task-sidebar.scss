@@ -222,11 +222,14 @@
     height: 100%;
     background: var(--accent-color);
     border-radius: 2px;
-    transition: width 0.3s ease;
+    // 后端每秒推送一次，0.55s 线性过渡让进度条连续移动而不是整段跳变
+    transition: width 0.55s linear;
+    will-change: width;
   }
 
   &__item-info {
     display: flex;
+    align-items: center;
     justify-content: space-between;
     font-size: 11px;
     color: var(--text-tertiary);
@@ -234,6 +237,13 @@
 
   &__item-size {
     flex: 1;
+    min-width: 0;
+  }
+
+  &__item-percent {
+    color: var(--text-secondary);
+    margin: 0 8px;
+    font-variant-numeric: tabular-nums;
   }
 
   &__item-speed {

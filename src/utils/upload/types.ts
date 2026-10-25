@@ -1,7 +1,6 @@
 export type UploadBatchContext = {
   taskId: string
   filePath: string
-  onProgress?: (uploaded: number, total: number, phase?: 'uploading' | 'backending') => void
 }
 
 /** 与 list API `direct_upload_tools` 对齐；有则优先浏览器直传 */
@@ -10,6 +9,8 @@ export type UploadOpts = {
   batch?: UploadBatchContext
   multipartEnabled?: boolean
   directUploadTools?: string[]
+  /** 受 Meta 密码保护路径的访问密码 */
+  pathPassword?: string
 }
 
 export type DirectUploadInfo = {
