@@ -33,7 +33,7 @@ import 'highlight.js/styles/github.css'
 import '../../styles/pages/file-browser.scss'
 
 // Initialize Mermaid / 初始化 Mermaid
-mermaid.initialize({ startOnLoad: false, theme: 'default' })
+mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'strict' })
 
 // Mermaid chart component / Mermaid 图表组件
 const MermaidChart = ({ chart }: { chart: string }) => {
@@ -449,7 +449,7 @@ function GalleryItem({ file, currentPath, onClick, onContextMenu }: {
     const fetchUrl = async () => {
       try {
         const filePath = currentPath ? `/${currentPath}/${file.name}` : `/${file.name}`
-        const response = await api.post('/api/fs/get_download_url', { path: filePath })
+        const response = await api.post('/api/fs/get_download_url', { path: filePath, password: getPasswordForPath(filePath) || undefined })
         if (response.data.code === 200) {
           setImageUrl(response.data.data.url)
         } else {
@@ -597,7 +597,7 @@ function CardItem({ file, currentPath, onClick, onContextMenu }: {
     const fetchUrl = async () => {
       try {
         const filePath = currentPath ? `/${currentPath}/${file.name}` : `/${file.name}`
-        const response = await api.post('/api/fs/get_download_url', { path: filePath })
+        const response = await api.post('/api/fs/get_download_url', { path: filePath, password: getPasswordForPath(filePath) || undefined })
         if (response.data.code === 200) {
           setMediaUrl(response.data.data.url)
         } else {
@@ -1296,7 +1296,7 @@ export default function FileBrowserContent() {
   const handleDownload = async (file: FileItem) => {
     try {
       const filePath = getFilePath(file.name)
-      const response = await api.post('/api/fs/get_download_url', { path: filePath })
+      const response = await api.post('/api/fs/get_download_url', { path: filePath, password: getPasswordForPath(filePath) || undefined })
       if (response.data.code === 200) {
         window.open(response.data.data.url, '_blank')
       } else {
@@ -1336,7 +1336,7 @@ export default function FileBrowserContent() {
     }
     try {
       const filePath = getFilePath(renameDialog.file.name)
-      const response = await api.post('/api/fs/rename', { path: filePath, name: renameDialog.newName })
+      const response = await api.post('/api/fs/rename', { path: filePath, name: renameDialog.newName, password: getPasswordForPath(filePath) || undefined })
       if (response.data.code === 200) {
         toast.success(t('fileBrowser.renameSuccess'))
         loadFiles(currentPath, 1, undefined, sortConfig)
@@ -1362,7 +1362,7 @@ export default function FileBrowserContent() {
     if (!deleteDialog.file) return
     try {
       const filePath = getFilePath(deleteDialog.file.name)
-      const response = await api.post('/api/fs/remove', { path: filePath })
+      const response = await api.post('/api/fs/remove', { path: filePath, password: getPasswordForPath(filePath) || undefined })
       if (response.data.code === 200) {
         toast.success(t('fileBrowser.deleteSuccess'))
         loadFiles(currentPath, 1, undefined, sortConfig)
@@ -1392,6 +1392,7 @@ export default function FileBrowserContent() {
       const filePath = getFilePath(directLinkDialog.file.name)
       const response = await api.post('/api/fs/get_direct_link', { 
         path: filePath,
+        password: getPasswordForPath(filePath) || undefined,
         expires_at: directLinkDialog.expiresAt || null,
         max_access_count: directLinkDialog.maxAccessCount ? parseInt(directLinkDialog.maxAccessCount) : null
       })
@@ -1468,6 +1469,7 @@ export default function FileBrowserContent() {
         const response = await api.post('/api/fs/extract', {
           src_path: srcPath,
           dst_path: pathModal.currentDir || '/',
+          path_password: getPasswordForPath(srcPath) || undefined,
           put_into_new_dir: true,
           overwrite: pathModal.conflictStrategy === 'overwrite'
         })
@@ -1486,11 +1488,15 @@ export default function FileBrowserContent() {
     const endpoint = pathModal.mode === 'copy' ? '/api/fs/copy' : '/api/fs/move'
     
     try {
+      const srcDir = currentPath ? `/${currentPath}` : '/'
+      const dstDir = pathModal.currentDir || '/'
       const response = await api.post(endpoint, {
-        src_dir: currentPath ? `/${currentPath}` : '/',
-        dst_dir: pathModal.currentDir || '/',
+        src_dir: srcDir,
+        dst_dir: dstDir,
         names: pathModal.names,
-        conflict_strategy: pathModal.conflictStrategy
+        conflict_strategy: pathModal.conflictStrategy,
+        src_password: getPasswordForPath(srcDir) || undefined,
+        dst_password: getPasswordForPath(dstDir) || undefined
       })
       if (response.data.code === 200) {
         toast.success(pathModal.mode === 'copy' ? t('fileBrowser.copySuccess') : t('fileBrowser.moveSuccess'))
@@ -1517,7 +1523,7 @@ export default function FileBrowserContent() {
     setPropertiesDialog({ visible: true, loading: true, data: null })
     
     try {
-      const response = await api.post('/api/fs/properties', { path: filePath })
+      const response = await api.post('/api/fs/properties', { path: filePath, password: getPasswordForPath(filePath) || undefined })
       if (response.data.code === 200) {
         setPropertiesDialog({ visible: true, loading: false, data: response.data.data })
       } else {
@@ -1549,6 +1555,7 @@ export default function FileBrowserContent() {
       const filePath = getFilePath(shareDialog.file.name)
       const response = await api.post('/api/shares', { 
         path: filePath,
+        path_password: getPasswordForPath(filePath) || undefined,
         expires_at: shareDialog.expiresAt || null,
         max_access_count: shareDialog.maxAccessCount ? parseInt(shareDialog.maxAccessCount) : null,
         password: shareDialog.password || null
@@ -1574,8 +1581,10 @@ export default function FileBrowserContent() {
       return
     }
     try {
+      const mkdirPath = currentPath ? `/${currentPath}/${mkdirDialog.name}` : `/${mkdirDialog.name}`
       const response = await api.post('/api/fs/mkdir', {
-        path: currentPath ? `/${currentPath}/${mkdirDialog.name}` : `/${mkdirDialog.name}`
+        path: mkdirPath,
+        password: getPasswordForPath(mkdirPath) || undefined
       })
       if (response.data.code === 200) {
         toast.success(t('fileBrowser.createFolderSuccess'))
@@ -1596,9 +1605,11 @@ export default function FileBrowserContent() {
       return
     }
     try {
+      const writePath = currentPath ? `/${currentPath}/${newFileDialog.name}` : `/${newFileDialog.name}`
       const response = await api.post('/api/fs/write', {
-        path: currentPath ? `/${currentPath}/${newFileDialog.name}` : `/${newFileDialog.name}`,
-        content: ''
+        path: writePath,
+        content: '',
+        password: getPasswordForPath(writePath) || undefined
       })
       if (response.data.code === 200) {
         toast.success(t('fileBrowser.createFileSuccess'))
@@ -1634,12 +1645,14 @@ export default function FileBrowserContent() {
     file: File,
     _taskId: string,
     relativePath?: string,
-    batchTaskId?: string,
-    batchOriginalPath?: string
+    batchTaskId?: string
   ) => {
     const targetPath = currentPath ? `/${currentPath}` : '/'
-    const filename = relativePath || file.name
-    const fullPath = joinFsPath(targetPath, filename)
+    const rawPath = relativePath || file.name
+    // 后端解析结果已是绝对路径（含自动重命名）；不要再和当前目录拼接，否则子目录会重复。
+    const fullPath = rawPath.startsWith('/') ? rawPath : joinFsPath(targetPath, rawPath)
+    // 任务、上传、进度、完成全部使用同一个最终路径，避免按文件名猜错。
+    const taskFilePath = fullPath
     if (batchTaskId && isUploadCancelled(batchTaskId)) {
       throw new Error('CANCELLED')
     }
@@ -1647,15 +1660,16 @@ export default function FileBrowserContent() {
     await uploadFileOpenList(file, fullPath, {
       overwrite: true,
       directUploadTools,
-      batch: batchTaskId && batchOriginalPath
-        ? { taskId: batchTaskId, filePath: batchOriginalPath }
+      pathPassword: getPasswordForPath(fullPath) || undefined,
+      batch: batchTaskId
+        ? { taskId: batchTaskId, filePath: taskFilePath }
         : undefined,
     })
 
-    if (batchTaskId && batchOriginalPath) {
+    if (batchTaskId) {
       await api.post('/api/fs/upload/complete_file', {
         task_id: batchTaskId,
-        file_path: batchOriginalPath,
+        file_path: taskFilePath,
       })
     }
 
@@ -1675,6 +1689,7 @@ export default function FileBrowserContent() {
     try {
       const batchResponse = await api.post('/api/fs/upload/batch', {
         target_path: targetPath,
+        path_password: getPasswordForPath(targetPath) || undefined,
         files: fileArray.map(f => ({
           path: (f as any).webkitRelativePath || f.name,
           size: f.size
@@ -1725,8 +1740,7 @@ export default function FileBrowserContent() {
           file,
           '',
           uploadRelative,
-          backendTaskId || undefined,
-          originalPath
+          backendTaskId || undefined
         )
       } catch (err: any) {
         // 如果是取消导致的错误，不记录
@@ -2335,7 +2349,7 @@ export default function FileBrowserContent() {
                         for (const name of batchDeleteDialog.names) {
                           const filePath = currentPath ? `/${currentPath}/${name}` : `/${name}`
                           try {
-                            const response = await api.post('/api/fs/remove', { path: filePath })
+                            const response = await api.post('/api/fs/remove', { path: filePath, password: getPasswordForPath(filePath) || undefined })
                             if (response.data.code === 200) {
                               successCount++
                             } else {
@@ -2547,7 +2561,7 @@ export default function FileBrowserContent() {
                   for (const name of selectedFiles) {
                     const filePath = currentPath ? `/${currentPath}/${name}` : `/${name}`
                     try {
-                      const res = await api.post('/api/fs/get_direct_link', { path: filePath })
+                      const res = await api.post('/api/fs/get_direct_link', { path: filePath, password: getPasswordForPath(filePath) || undefined })
                       if (res.data.code === 200) {
                         // Use URL directly from backend / 直接使用后端返回的URL
                         links.push(res.data.data.url)
@@ -2581,7 +2595,7 @@ export default function FileBrowserContent() {
                 if (file && !file.is_dir) {
                   const filePath = currentPath ? `/${currentPath}/${name}` : `/${name}`
                   try {
-                    const res = await api.post('/api/fs/get_download_url', { path: filePath })
+                    const res = await api.post('/api/fs/get_download_url', { path: filePath, password: getPasswordForPath(filePath) || undefined })
                     if (res.data.code === 200) {
                       window.open(res.data.data.url, '_blank')
                     }
@@ -2656,7 +2670,7 @@ export default function FileBrowserContent() {
                 // 逐个获取文件并添加到ZIP
                 for (const file of allFiles) {
                   try {
-                    const res = await api.post('/api/fs/get_download_url', { path: file.path })
+                    const res = await api.post('/api/fs/get_download_url', { path: file.path, password: getPasswordForPath(file.path) || undefined })
                     if (res.data.code === 200) {
                       const fileResponse = await fetch(res.data.data.url)
                       const blob = await fileResponse.blob()

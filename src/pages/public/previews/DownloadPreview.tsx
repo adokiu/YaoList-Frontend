@@ -14,6 +14,21 @@ import { extractAudioMetadata, formatSampleRate, AudioMetadata } from '../../../
 import { isEncryptedAudio, extractEncryptedAudioMetadata } from '../../../utils/audioDecrypt'
 import './previews.scss'
 
+function getPathPassword(targetPath: string): string {
+  try {
+    const passwords = JSON.parse(sessionStorage.getItem('pathPasswords') || '{}')
+    if (passwords[targetPath]) return passwords[targetPath]
+    const parts = targetPath.split('/').filter(Boolean)
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const parent = '/' + parts.slice(0, i).join('/')
+      const normalized = parent === '' ? '/' : parent
+      if (passwords[normalized]) return passwords[normalized]
+    }
+    if (passwords['/']) return passwords['/']
+  } catch {}
+  return ''
+}
+
 interface FileItem {
   name: string
   path: string
@@ -989,6 +1004,7 @@ export default function DownloadPreview({ file, url }: DownloadPreviewProps) {
     try {
       const res = await api.post('/api/fs/get_direct_link', { 
         path: file.path,
+        password: getPathPassword(file.path) || undefined,
         expires_at: directLinkDialog.expiresAt || null,
         max_access_count: directLinkDialog.maxAccessCount ? parseInt(directLinkDialog.maxAccessCount) : null
       })
@@ -1014,6 +1030,7 @@ export default function DownloadPreview({ file, url }: DownloadPreviewProps) {
     try {
       const response = await api.post('/api/shares', { 
         path: file.path,
+        path_password: getPathPassword(file.path) || undefined,
         expires_at: shareDialog.expiresAt || null,
         max_access_count: shareDialog.maxAccessCount ? parseInt(shareDialog.maxAccessCount) : null,
         password: shareDialog.password || null

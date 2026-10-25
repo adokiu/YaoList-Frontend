@@ -21,7 +21,7 @@ import 'highlight.js/styles/github.css'
 import '../../styles/pages/file-browser.scss'
 
 // 初始化 Mermaid
-mermaid.initialize({ startOnLoad: false, theme: 'default' })
+mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'strict' })
 
 // Mermaid 图表组件
 const MermaidChart = ({ chart }: { chart: string }) => {
@@ -351,7 +351,7 @@ export default function FilePreviewContent() {
       
       // 获取下载链接 / Get download link
       try {
-        const linkRes = await api.post('/api/fs/get_download_url', { path: '/' + path })
+        const linkRes = await api.post('/api/fs/get_download_url', { path: '/' + path, password: getPasswordForPath('/' + path) || undefined })
         if (linkRes.data.code === 200) {
           setDownloadUrl(linkRes.data.data.url)
         }
@@ -406,7 +406,8 @@ export default function FilePreviewContent() {
             for (const audioFile of audioFiles) {
               try {
                 const linkRes = await api.post('/api/fs/get_download_url', { 
-                  path: dirPath + '/' + audioFile.name 
+                  path: dirPath + '/' + audioFile.name,
+                  password: getPasswordForPath(dirPath + '/' + audioFile.name) || undefined,
                 })
                 if (linkRes.data.code === 200) {
                   siblings.push({
@@ -455,7 +456,8 @@ export default function FilePreviewContent() {
             for (const videoFile of videoFiles) {
               try {
                 const linkRes = await api.post('/api/fs/get_download_url', { 
-                  path: dirPath + '/' + videoFile.name 
+                  path: dirPath + '/' + videoFile.name,
+                  password: getPasswordForPath(dirPath + '/' + videoFile.name) || undefined,
                 })
                 if (linkRes.data.code === 200) {
                   siblings.push({

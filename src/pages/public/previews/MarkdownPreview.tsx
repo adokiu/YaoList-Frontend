@@ -9,6 +9,24 @@ interface MarkdownPreviewProps {
   onClose?: () => void
 }
 
+function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function safeUrl(raw: string): string {
+  const url = raw.trim()
+  // 只允许 http(s)/mailto/相对路径/锚点；禁止 javascript:、data: 等可执行协议。
+  if (/^[a-z][a-z0-9+.-]*:/i.test(url) && !/^(https?|mailto):/i.test(url)) {
+    return '#'
+  }
+  return escapeAttr(url)
+}
+
 // 简单的 Markdown 解析器
 function parseMarkdown(md: string): string {
   let html = md
@@ -18,7 +36,7 @@ function parseMarkdown(md: string): string {
   
   // 代码块 ```
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    return `<pre class="md-code-block" data-lang="${lang}"><code>${code.trim()}</code></pre>`
+    return `<pre class="md-code-block" data-lang="${escapeAttr(lang)}"><code>${code.trim()}</code></pre>`
   })
   
   // 行内代码 `code`
@@ -44,10 +62,14 @@ function parseMarkdown(md: string): string {
   html = html.replace(/~~(.+?)~~/g, '<del>$1</del>')
   
   // 链接 [text](url)
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) =>
+    `<a href="${safeUrl(url)}" target="_blank" rel="noopener noreferrer">${text}</a>`
+  )
   
   // 图片 ![alt](url)
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="md-image" />')
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, url) =>
+    `<img src="${safeUrl(url)}" alt="${escapeAttr(alt)}" class="md-image" />`
+  )
   
   // 无序列表
   html = html.replace(/^\s*[-*+]\s+(.+)$/gm, '<li>$1</li>')

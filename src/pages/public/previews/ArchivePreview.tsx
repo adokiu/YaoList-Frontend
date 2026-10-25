@@ -19,6 +19,21 @@ interface ArchivePreviewProps {
   }
 }
 
+function getPathPassword(targetPath: string): string {
+  try {
+    const passwords = JSON.parse(sessionStorage.getItem('pathPasswords') || '{}')
+    if (passwords[targetPath]) return passwords[targetPath]
+    const parts = targetPath.split('/').filter(Boolean)
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const parent = '/' + parts.slice(0, i).join('/')
+      const normalized = parent === '' ? '/' : parent
+      if (passwords[normalized]) return passwords[normalized]
+    }
+    if (passwords['/']) return passwords['/']
+  } catch {}
+  return ''
+}
+
 interface ArchiveEntry {
   name: string
   path: string
@@ -79,7 +94,8 @@ export default function ArchivePreview({ file }: ArchivePreviewProps) {
     try {
       const response = await api.post('/api/fs/archive/list', {
         path: file.path,
-        inner_path: innerPath
+        inner_path: innerPath,
+        password: getPathPassword(file.path) || undefined,
       })
       
       if (response.data.code === 200) {

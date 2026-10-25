@@ -5,6 +5,21 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../utils/api'
 import { useToast } from './Toast'
 
+function getPathPassword(targetPath: string): string {
+  try {
+    const passwords = JSON.parse(sessionStorage.getItem('pathPasswords') || '{}')
+    if (passwords[targetPath]) return passwords[targetPath]
+    const parts = targetPath.split('/').filter(Boolean)
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const parent = '/' + parts.slice(0, i).join('/')
+      const normalized = parent === '' ? '/' : parent
+      if (passwords[normalized]) return passwords[normalized]
+    }
+    if (passwords['/']) return passwords['/']
+  } catch {}
+  return ''
+}
+
 interface FileItem {
   name: string
   is_dir: boolean
@@ -73,6 +88,7 @@ export function ExtractDialog({ visible, fileName, sourcePath, onClose, onSucces
         src_path: srcPath,
         dst_path: targetPath || '/',
         password: password || undefined,
+        path_password: getPathPassword(srcPath) || undefined,
         encoding: encoding,
         put_into_new_dir: putIntoNewDir,
         overwrite: overwrite

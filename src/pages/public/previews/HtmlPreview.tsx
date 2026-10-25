@@ -154,6 +154,7 @@ export default function HtmlPreview({ url, file }: HtmlPreviewProps) {
             ref={iframeRef}
             className="preview__html-iframe"
             srcDoc={content}
+            sandbox=""
             title={filename}
           />
         )}

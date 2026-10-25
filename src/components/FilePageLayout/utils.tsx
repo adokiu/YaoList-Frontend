@@ -9,7 +9,7 @@ import rehypeRaw from 'rehype-raw'
 import mermaid from 'mermaid'
 
 // 初始化 Mermaid
-mermaid.initialize({ startOnLoad: false, theme: 'default' })
+mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'strict' })
 
 // Mermaid 图表组件
 export const MermaidChart = ({ chart }: { chart: string }) => {
